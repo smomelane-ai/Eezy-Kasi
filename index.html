@@ -137,6 +137,18 @@ main{padding-bottom:84px}
 #legalpanel h3{margin:14px 0 4px;font-size:15px}
 #legalpanel p,#legalpanel li{font-size:14px;margin:4px 0}
 #legalpanel ul{padding-left:20px;margin:4px 0}
+#founderpanel{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+#founderpanel[hidden]{display:none}
+#founderpanel textarea{width:100%;box-sizing:border-box;font:inherit;font-size:15px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);resize:vertical}
+.fq1{position:relative;margin:14px 0 0;padding:26px 20px 22px;border-radius:18px;color:#fff;text-align:center;background:linear-gradient(135deg,#0d0d0d 0%,#1d1a12 55%,#0e2e2b 100%);box-shadow:inset 0 0 0 1px rgba(231,199,106,.55),0 8px 22px rgba(0,0,0,.18)}
+.fq1 .fmark{position:absolute;left:14px;top:2px;font:800 64px/1 Georgia,serif;color:#e7c76a;opacity:.85}
+.fq1 p{margin:0;font-size:25px;line-height:1.3;font-weight:800;font-style:italic;white-space:pre-line}
+.fq1 .fbar{width:54px;height:4px;border-radius:4px;margin:14px auto 0;background:linear-gradient(90deg,#e7c76a,#2dd4bf)}
+.fgap{height:18px;display:flex;align-items:center;justify-content:center;gap:8px;color:#b8892b;font-size:12px;letter-spacing:.4em}
+.fq2{position:relative;padding:22px 20px 22px 24px;border-radius:18px;color:#111;background:linear-gradient(135deg,#fffaf0 0%,#f1f8f6 100%);border:1px solid #e7c76a;border-left:6px solid #0f766e;box-shadow:0 6px 18px rgba(15,118,110,.12)}
+.fq2 .fmark{position:absolute;right:16px;bottom:-14px;font:800 70px/1 Georgia,serif;color:#0f766e;opacity:.22}
+.fq2 p{margin:0;font-size:16px;line-height:1.65;white-space:pre-line}
+.fcap{font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:#8a6a1c;text-align:center;margin-top:2px}
 .pw-wrap { position: relative; display: block; }
 .pw-wrap input { width: 100%; box-sizing: border-box; padding-right: 48px; }
 .pw-eye {
@@ -151,12 +163,14 @@ main{padding-bottom:84px}
   <div class="bar" id="bar"></div>
   <div id="install"></div>
   <div id="app"></div>
-  <div id="logo" style="text-align:center;margin:20px auto 8px;max-width:220px"></div>
+  <div id="founderrow" style="text-align:center;margin:18px auto 0" hidden><button class="sm" type="button" data-founder="open" style="border-color:#b8892b">&#10024; Meet our founder</button></div>
+  <div id="logo" style="text-align:center;margin:12px auto 8px;max-width:220px"></div>
 </main>
 <div class="legalfoot"><button class="sm" type="button" data-legal="open">Privacy policy and terms</button></div>
 <button id="wishbtn" class="wishbtn" type="button">📝 Wish list</button>
 <div id="wishpanel" hidden></div>
 <div id="legalpanel" hidden></div>
+<div id="founderpanel" hidden></div>
 <script>
 const R = c => "R" + (c/100).toFixed(2);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1926,5 +1940,99 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
 })();
 </script>
 
+
+<script>
+// ---- founder page: button above the logo once signed in; the admin can change the photo and both quotes ----
+(function () {
+  const DEF = {
+    photo: "",
+    q1: "The best is yet to come.",
+    q2: "A creator never forgets his creation, and a creation never forgets its creator. Wake up every day with new energy and fresh ideas, because this world is full of opportunities. No fall is the end of the story. Even after a fall from grace, you can rise again, stronger than before."
+  };
+  let data = Object.assign({}, DEF), editing = false, msg = "", bad = false, busy = false;
+  const isAdmin = () => typeof user !== "undefined" && user && user.tab === "adm";
+
+  function vis() {
+    const r = document.getElementById("founderrow");
+    if (r) r.hidden = !(typeof user !== "undefined" && user);
+  }
+  async function load() {
+    try {
+      const r = await sb("/rest/v1/founder_page?select=photo_url,quote1,quote2&id=eq.1");
+      if (r && r[0]) data = { photo: r[0].photo_url || "", q1: r[0].quote1 || DEF.q1, q2: r[0].quote2 || DEF.q2 };
+    } catch (e) {}
+  }
+  function html() {
+    const photo = data.photo
+      ? '<img src="' + esc(data.photo) + '" alt="Our founder" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;background:#eee">'
+      : '<div style="width:100%;height:100%;border-radius:50%;background:#111;color:#e7c76a;display:flex;align-items:center;justify-content:center;font-size:44px">&#10022;</div>';
+    let h = '<div role="dialog" aria-modal="true" aria-label="Meet our founder" style="width:100%;max-width:560px;max-height:92vh;overflow-y:auto;background:var(--surface);color:var(--ink);border-radius:18px;padding:16px;line-height:1.5">' +
+      '<div style="text-align:right"><button class="sm" data-founder="close" id="founderclose">Close</button></div>' +
+      '<div class="fcap">Meet our founder</div>' +
+      '<div style="width:160px;height:160px;border-radius:50%;padding:4px;margin:12px auto 6px;background:linear-gradient(135deg,#e7c76a,#b8892b 55%,#0f766e)">' + photo + '</div>' +
+      '<div class="fq1"><span class="fmark">&ldquo;</span><p>' + esc(data.q1) + '</p><div class="fbar"></div></div>' +
+      '<div class="fgap"><span>&#9670;</span><span>&#9670;</span><span>&#9670;</span></div>' +
+      '<div class="fq2"><p>' + esc(data.q2) + '</p><span class="fmark">&rdquo;</span></div>' +
+      '<div style="text-align:center;margin:18px 0 4px"><div style="width:46px;height:3px;border-radius:3px;margin:0 auto 10px;background:linear-gradient(90deg,#e7c76a,#0f766e)"></div><div style="font:800 21px/1.2 Georgia,serif;letter-spacing:.02em">Lufefe Melane</div><div class="fcap" style="margin-top:5px">Founder, Inanda Business Web</div></div>';
+    if (msg) h += '<div class="note" style="' + (bad ? 'color:var(--bad);background:var(--bad-bg)' : 'color:var(--ok);background:var(--ok-bg)') + '" role="status">' + esc(msg) + '</div>';
+    if (isAdmin()) {
+      if (!editing) {
+        h += '<p style="text-align:center;margin:14px 0 0"><button class="sm" data-founder="edit">Edit this page</button></p>';
+      } else {
+        h += '<div class="card" style="margin:14px 0 0"><h3 style="margin:0 0 6px">Edit the founder page</h3>' +
+          '<label for="f_file">Change the photo (leave empty to keep the current one)</label><input id="f_file" type="file" accept="image/*">' +
+          '<label for="f_q1">First quote</label><textarea id="f_q1" rows="2">' + esc(data.q1) + '</textarea>' +
+          '<label for="f_q2">Second quote</label><textarea id="f_q2" rows="5">' + esc(data.q2) + '</textarea>' +
+          '<button class="btn" data-founder="save"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Saving...' : 'Save') + '</button>' +
+          '<button class="btn ghost" data-founder="cancel">Cancel</button></div>';
+      }
+    }
+    return h + '<button class="btn" data-founder="close" style="margin-top:14px">Close</button></div>';
+  }
+  function paint() {
+    const p = document.getElementById("founderpanel"); if (!p || p.hidden) return;
+    const keep = p.firstElementChild ? p.firstElementChild.scrollTop : 0;
+    p.innerHTML = html();
+    if (p.firstElementChild) p.firstElementChild.scrollTop = keep;
+  }
+  async function open() {
+    const p = document.getElementById("founderpanel"); if (!p) return;
+    editing = false; msg = ""; p.hidden = false; paint();
+    const c = document.getElementById("founderclose"); if (c) c.focus();
+    await load(); paint();
+  }
+  function close() { const p = document.getElementById("founderpanel"); if (p) { p.hidden = true; p.innerHTML = ""; } editing = false; msg = ""; }
+  async function save() {
+    if (busy) return;
+    const q1 = (document.getElementById("f_q1").value || "").trim(), q2 = (document.getElementById("f_q2").value || "").trim();
+    if (!q1 || !q2) { msg = "Both quotes need some text."; bad = true; paint(); return; }
+    const file = document.getElementById("f_file").files[0];
+    busy = true; msg = ""; paint();
+    try {
+      let photo = data.photo;
+      if (file) photo = await uploadMedia(file, "news");
+      const r = await sb("/rest/v1/founder_page?id=eq.1", { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ photo_url: photo || null, quote1: q1, quote2: q2, updated_at: new Date().toISOString() }) });
+      if (!r || !r.length) throw new Error("Could not save. The founder page table or admin permission is not set up yet.");
+      data = { photo: photo || "", q1: q1, q2: q2 }; editing = false; msg = "Saved. Everyone will now see this."; bad = false;
+    } catch (e) { msg = e.message || "Could not save."; bad = true; }
+    busy = false; paint();
+  }
+  document.addEventListener("click", e => {
+    const el = e.target.closest && e.target.closest("[data-founder]"), p = document.getElementById("founderpanel");
+    if (el) {
+      const a = el.dataset.founder;
+      if (a === "open") open();
+      else if (a === "close") close();
+      else if (a === "edit") { editing = true; msg = ""; paint(); }
+      else if (a === "cancel") { editing = false; msg = ""; paint(); }
+      else if (a === "save") save();
+    } else if (p && e.target === p) close();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { const p = document.getElementById("founderpanel"); if (p && !p.hidden) close(); } });
+  const bar = document.getElementById("bar");
+  if (bar) new MutationObserver(vis).observe(bar, { childList: true, subtree: true });
+  vis();
+})();
+</script>
 </body>
 </html>
