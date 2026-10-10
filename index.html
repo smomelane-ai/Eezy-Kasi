@@ -1946,7 +1946,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   const DEF = {
     photo: "",
     q1: "The best is yet to come.",
-    q2: "The creator will never forget his creation. Wake up every day with a new energy and ideas in this world of the opportunities of coming back up again after your nuclear fall from grace."
+    q2: "A creator never forgets his creation, and a creation never forgets its creator. Wake up every day with new energy and fresh ideas, because this world is full of opportunities. No fall is the end of the story. Even after a fall from grace, you can rise again, stronger than before."
   };
   let data = Object.assign({}, DEF), editing = false, msg = "", bad = false, busy = false;
   const isAdmin = () => typeof user !== "undefined" && user && user.tab === "adm";
@@ -1971,7 +1971,8 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
       '<div style="width:160px;height:160px;border-radius:50%;padding:4px;margin:12px auto 6px;background:linear-gradient(135deg,#e7c76a,#b8892b 55%,#0f766e)">' + photo + '</div>' +
       '<div class="fq1"><span class="fmark">&ldquo;</span><p>' + esc(data.q1) + '</p><div class="fbar"></div></div>' +
       '<div class="fgap"><span>&#9670;</span><span>&#9670;</span><span>&#9670;</span></div>' +
-      '<div class="fq2"><p>' + esc(data.q2) + '</p><span class="fmark">&rdquo;</span></div>';
+      '<div class="fq2"><p>' + esc(data.q2) + '</p><span class="fmark">&rdquo;</span></div>' +
+      '<div style="text-align:center;margin:18px 0 4px"><div style="width:46px;height:3px;border-radius:3px;margin:0 auto 10px;background:linear-gradient(90deg,#e7c76a,#0f766e)"></div><div style="font:800 21px/1.2 Georgia,serif;letter-spacing:.02em">Lufefe Melane</div><div class="fcap" style="margin-top:5px">Founder, Inanda Business Web</div></div>';
     if (msg) h += '<div class="note" style="' + (bad ? 'color:var(--bad);background:var(--bad-bg)' : 'color:var(--ok);background:var(--ok-bg)') + '" role="status">' + esc(msg) + '</div>';
     if (isAdmin()) {
       if (!editing) {
