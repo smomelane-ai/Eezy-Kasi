@@ -178,7 +178,7 @@ let tab="cust", ownView="due", cancelling=null, user=null, loc=null, locId=null;
 const dispName=()=>{ const p=ST.profile||{}, n=((p.name||"")+" "+(p.surname||"")).trim(); if(n) return n; if(ST.shop&&ST.shop.name) return ST.shop.name; if(ST.me&&ST.me.full_name) return ST.me.full_name; return ROLES[user.tab]||""; };
 const ROLES={cust:"Customer",own:"Shop owner",adm:"Admin",drv:"Driver",pend:"Your account"};
 let cview="home", xtab="main";
-const blank=()=>({areas:[],shops:[],shop:null,menu:[],cart:{},address:"",orders:[],due:{},stmt:[],mine:[],all:[],err:"",note:"",offers:[],trips:[],me:null,myRoutes:[],openReqs:[],myOffers:[],contacts:{},jobs:[],dDue:{},pend:[],pays:[],xtrips:[],form:{nsrc:"Chris"},chats:[],thread:null,msgs:[],threadWith:null,unread:0,profile:{},req:false,news:[],vids:[],feedErr:"",reporting:false,members:[],reports:[],atab:"over",mfilter:"pending",openm:{},custAppr:false,membersErr:"",shopApp:null});
+const blank=()=>({areas:[],shops:[],shop:null,menu:[],cart:{},address:"",orders:[],due:{},stmt:[],mine:[],all:[],err:"",note:"",offers:[],trips:[],rd:null,here:null,rides:[],me:null,myRoutes:[],openReqs:[],myOffers:[],contacts:{},jobs:[],dDue:{},pend:[],pays:[],xtrips:[],form:{nsrc:"Chris"},chats:[],thread:null,msgs:[],threadWith:null,unread:0,profile:{},req:false,news:[],vids:[],feedErr:"",reporting:false,members:[],reports:[],atab:"over",mfilter:"pending",openm:{},custAppr:false,membersErr:"",shopApp:null});
 let ST=blank();
 const tagFor = st => ({placed:["New","bad"],accepted:["Accepted",""],delivered:["Delivered","ok"],cancelled:["Cancelled",""],open:["Waiting for drivers","bad"],requested:["Waiting for driver","bad"],started:["Trip started",""],declined:["Declined",""],completed:["Arrived safely","ok"]}[st]||[st,""]);
 const rpc=(fn,args)=>sb("/rest/v1/rpc/"+fn,{method:"POST",body:JSON.stringify(args)});
@@ -285,7 +285,7 @@ async function openChat(id){
 }
 async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=*&id=eq.${sess.user.id}`); ST.me=m[0]||null; }
 async function loadTrips(){
-  ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
+  ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
   const ids=ST.trips.map(t=>t.id);
   ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,cellphone,vehicle_make,vehicle_colour,plate_number,photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
   await signPhotos(ST.offers.map(o=>o.drivers).filter(Boolean));
@@ -300,11 +300,11 @@ async function loadDriver(){
   const id=sess.user.id;
   const r=await Promise.all([sb(`/rest/v1/drivers?select=*&id=eq.${id}`),
     sb(`/rest/v1/driver_routes?select=id,from_place,to_place,price_cents&driver_id=eq.${id}&order=from_place`),
-    sb(`/rest/v1/transport_requests?select=id,from_place,to_place,goods_type,description,when_text,budget_cents&status=eq.open&order=id`),
+    sb(`/rest/v1/transport_requests?select=id,from_place,to_place,goods_type,description,when_text,budget_cents,ride_type,distance_km,price_cents,pickup_lat,pickup_lng&status=eq.open&order=id`),
     sb(`/rest/v1/transport_offers?select=request_id,price_cents,status&driver_id=eq.${id}`),
-    sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,description,when_text,price_cents,customer_id&chosen_driver_id=eq.${id}&status=in.(accepted,started)&order=id`),
+    sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,description,when_text,price_cents,customer_id,ride_type,distance_km,pickup_lat,pickup_lng,drop_lat,drop_lng&chosen_driver_id=eq.${id}&status=in.(accepted,started)&order=id`),
     sb(`/rest/v1/driver_amount_due?select=*&driver_id=eq.${id}`)]);
-  ST.me=r[0][0]||null; ST.myRoutes=r[1]; ST.openReqs=r[2]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
+  ST.me=r[0][0]||null; ST.myRoutes=r[1]; ST.openReqs=r[2].filter(x=>x.ride_type!=="car"); ST.rides=(r[0][0]&&r[0][0].vehicle_type==="car")?r[2].filter(x=>x.ride_type==="car"):[]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
   if(ST.jobs.length){ const c=await sb(`/rest/v1/transport_contacts?select=request_id,pickup_text,phone&request_id=in.(${ST.jobs.map(j=>j.id).join(",")})`); c.forEach(x=>{ST.contacts[x.request_id]=x;}); }
 }
 async function shrink(file){
@@ -402,17 +402,71 @@ function customer(){
   const waiting=(ST.profile&&ST.profile.requested_role==="owner")?'<div class="banner bad"><strong>Your business is waiting for approval</strong>We are checking your details. After you are approved, log out and log in again to open your shop screen.</div>':(ST.profile&&ST.profile.requested_role==="driver"&&ST.me&&ST.me.status==="pending")?'<div class="banner bad"><strong>Your driver application is waiting for approval</strong>We are checking your details. After you are approved, log out and log in again to open your driver screen.</div>':"";
   return seg+waiting+(cview==="home"?homeTiles()+feed():cview==="drive"?driveTab():(loc?food():areaScreen()))+(ST.me?"":'<button class="sm" style="margin:2px 0 14px" data-a="cview" data-v="apply">Become a driver</button>');
 }
+// ---- car rides: phone GPS, place search and a price worked out from the distance ----
+function getPos(){
+  return new Promise((ok,no)=>{
+    if(!navigator.geolocation) return no(new Error("This phone cannot share its location. Search for the place instead."));
+    navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude}),
+      e=>no(new Error(e.code===1?"Location is blocked. Allow location for this app in your phone settings, or search for the place instead.":"Could not get your location. Move to an open area and try again, or search for the place instead.")),
+      {enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+  });
+}
+const kmBetween=(a,b)=>{ const r=x=>x*Math.PI/180, h=Math.pow(Math.sin(r(b.lat-a.lat)/2),2)+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.pow(Math.sin(r(b.lng-a.lng)/2),2); return 12742*Math.asin(Math.min(1,Math.sqrt(h))); };
+async function fetchJson(url,ms){
+  const c=new AbortController(), t=setTimeout(()=>c.abort(),ms||9000);
+  try{ const r=await fetch(url,{signal:c.signal}); if(!r.ok) throw new Error("HTTP "+r.status); return await r.json(); } finally{ clearTimeout(t); }
+}
+async function findPlaces(q){
+  let j; try{ j=await fetchJson("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=za&viewbox=30.6,-29.4,31.4,-30.2&q="+encodeURIComponent(q)); }
+  catch(e){ throw new Error("The place search did not answer. Check your internet and try again."); }
+  return (j||[]).map(x=>({lat:+x.lat,lng:+x.lon,label:String(x.display_name||"").split(",").slice(0,3).join(",").trim()})).filter(x=>isFinite(x.lat)&&isFinite(x.lng));
+}
+async function nameOf(p){
+  try{ const j=await fetchJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&lat=${p.lat}&lon=${p.lng}`,6000);
+    const n=String((j&&j.display_name)||"").split(",").slice(0,2).join(",").trim(); return n?"Near "+n:"My location"; }catch(e){ return "My location"; }
+}
+async function roadKm(a,b){
+  try{ const j=await fetchJson(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`,9000);
+    if(j&&j.code==="Ok"&&j.routes&&j.routes[0]) return {km:j.routes[0].distance/1000,est:false}; }catch(e){}
+  return {km:kmBetween(a,b)*1.3,est:true};
+}
+async function rdQuote(){
+  const d=ST.rd; d.quote=null; if(!d.pickup||!d.drop) return;
+  const r=await roadKm(d.pickup,d.drop);
+  d.quote=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+r.km.toFixed(2)});
+  d.km=r.km; d.est=r.est;
+}
+const navLink=(lat,lng,txt)=>lat==null?"":`<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener">${txt}</a>`;
+function pointBox(kind,title){
+  const d=ST.rd, pt=d[kind], res=d.res[kind]||[], k=kind==="pickup"?"rdqp":"rdqd";
+  return `<h2 style="margin-top:14px">${title}</h2>`+(pt
+    ?`<div class="note"><b>${esc(pt.label)}</b></div><button class="sm" data-a="rdclear" data-v="${kind}">Change</button>`
+    :(kind==="pickup"?`<button class="btn" data-a="rdhere">Use my location</button>`:"")
+      +fld(k,kind==="pickup"?"Or search for a place":"Search for a place","e.g. a school, shop, road or suburb")
+      +`<button class="btn ghost" data-a="rdsearch" data-v="${kind}">Search</button>`
+      +res.map((x,i)=>`<button class="sm" style="display:block;width:100%;text-align:left;margin:6px 0" data-a="rdpick" data-v="${kind}" data-id="${i}">${esc(x.label)}</button>`).join(""));
+}
+function rideForm(){
+  const d=ST.rd, q=d.quote;
+  return `<h1>Request a car ride</h1><p class="sub">Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.</p>${msgs()}
+  <div class="card">${pointBox("pickup","Pick-up")}${pointBox("drop","Drop-off")}</div>
+  ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div><div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}You pay the driver in cash when you arrive.</div></div>`:""}
+  <div class="card">${fld("rdphone","Your cellphone number","Only the driver who accepts will see this","tel")}${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
+  <button class="btn" data-a="rdsend" ${q?"":"disabled"}>Request this ride</button><button class="btn ghost" data-a="rdback">Back</button></div>`;
+}
 function driveTab(){
+  if(ST.rd) return rideForm();
   if(ST.req) return reqForm();
   const trips=ST.trips.map(t=>{
     const g=tagFor(t.status), offs=ST.offers.filter(o=>o.request_id===t.id), chosen=offs.find(o=>o.status==="chosen"); let body="";
-    if(t.status==="open") body=offs.length?offs.map(o=>{const ok=t.budget_cents&&o.price_cents<=t.budget_cents;
+    if(t.status==="open"&&t.ride_type==="car") body='<div class="note">Waiting for a car driver to accept. Your fixed price is <b>'+R(t.price_cents)+'</b> ('+esc(t.distance_km)+' km). You will hear a sound when a driver accepts.</div>';
+    else if(t.status==="open") body=offs.length?offs.map(o=>{const ok=t.budget_cents&&o.price_cents<=t.budget_cents;
       return `<div class="note">${person(o.drivers||{})}<div class="row"><b>${R(o.price_cents)}</b>${ok?'<span class="tag ok">Within your budget</span>':""}</div><button class="sm" data-a="chatwith" data-v="${o.driver_id}">Message driver</button><button class="btn" data-a="choose" data-id="${t.id}" data-v="${o.driver_id}">Choose this driver</button></div>`}).join(""):'<div class="note">No driver has accepted yet. Tap Refresh in a little while.</div>';
     else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>Pay the driver in cash</span><b>${R(t.price_cents)}</b></div><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button></div>`;
     const act=(t.status==="accepted"||t.status==="started")?`<button class="btn" data-a="arrived" data-id="${t.id}">I have arrived safely</button>`:"";
     const can=(t.status==="open"||t.status==="accepted")?(cancelling===t.id?`<select id="why"><option>Changed my mind</option><option>Driver not answering</option><option>Found another driver</option></select><button class="btn ghost" data-a="docanceltrip" data-id="${t.id}">Confirm cancel</button>`:`<button class="btn ghost" data-a="canceltrip" data-id="${t.id}">Cancel</button>`):"";
-    return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
-  return `<h1>Request a driver</h1><p class="sub">Say where from and where to. Drivers who travel that route accept, and you choose the one that suits your budget. You pay the driver in cash. Tap <b>I have arrived safely</b> when you get home.</p>${msgs()}<button class="btn" data-a="newreq">Request a driver</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
+    return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?"Car ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
+  return `<h1>Request a driver</h1><p class="sub">Need a car? Choose <b>Request a car ride</b>: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose <b>Move goods</b>, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap <b>I have arrived safely</b> when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a car ride</button><button class="btn ghost" style="margin-top:8px" data-a="newreq">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
 }
 function reqForm(){
   return `<h1>Request a driver</h1>${msgs()}<div class="card">
@@ -438,17 +492,22 @@ function driver(){
   const me=ST.me; if(!me) return applyScreen();
   const d=ST.dDue||{}, due=d.amount_due_cents||0, offered=new Set(ST.myOffers.map(o=>o.request_id));
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Inanda Business Web.</div>':"");
+  const here=ST.here, kmTo=x=>(here&&x.pickup_lat!=null)?kmBetween(here,{lat:x.pickup_lat,lng:x.pickup_lng}):null;
+  const rideList=(ST.rides||[]).slice().sort((a,b)=>{const ka=kmTo(a),kb=kmTo(b); return (ka==null||kb==null)?(b.id-a.id):(ka-kb);}).map(x=>{const k=kmTo(x);
+    return `<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div><small>${esc(x.distance_km)} km trip${k!=null?" · pick-up about "+k.toFixed(1)+" km from you":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept this ride for ${R(x.price_cents)}</button></div>`}).join("");
+  const rideSec=me.vehicle_type==="car"?`<h2>Car rides</h2>${here?"":'<button class="sm" data-a="rdnear">Show how far each ride is from me</button>'}${rideList||'<div class="card"><small>No car rides are waiting right now. Tap Refresh to check.</small></div>'}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
     return `<div class="card"><div class="row"><b>${esc(r.from_place)} → ${esc(r.to_place)}</b><b>${rt?R(rt.price_cents):""}</b></div><small>${esc(r.goods_type)}: ${esc(r.description||"")}<br>When: ${esc(r.when_text||"-")}${r.budget_cents?"<br>Customer budget: "+R(r.budget_cents):""}</small>${offered.has(r.id)?'<div class="note">You accepted. Waiting for the customer to choose.</div>':`<button class="btn" data-a="offer" data-id="${r.id}">Accept at ${R(rt?rt.price_cents:0)}</button>`}</div>`}).join("");
   const jobs=ST.jobs.map(j=>{const g=tagFor(j.status), c=ST.contacts[j.id]||{};
     const act=j.status==="accepted"?`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`:'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
-    return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}<br>When: ${esc(j.when_text||"-")}<br>Customer: <a href="tel:${esc(c.phone||"")}">${esc(c.phone||"")}</a></small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${act}</div>`}).join("");
+    return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}<br>When: ${esc(j.when_text||"-")}<br>Customer: <a href="tel:${esc(c.phone||"")}">${esc(c.phone||"")}</a></small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}</div>`}).join("");
   const routes=ST.myRoutes.map(p=>`<div class="row"><span>${esc(p.from_place)} → ${esc(p.to_place)}</span><span><b>${R(p.price_cents)}</b> <button class="sm" data-a="delroute" data-id="${p.id}">Remove</button></span></div>`).join("");
   return `<h1>${esc(me.full_name)}</h1><p class="sub">Trips are paid weekly.</p>${bn}${msgs()}
   <div class="card"><h2>Balance to pay</h2><div class="row"><span>Trips finished</span><b>${d.jobs_completed||0}</b></div>
     <div class="row"><span>Amount due</span><b class="big">${R(due)}</b></div>
     <div class="note">Pay your balance within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
+  ${rideSec}
   <h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
   <h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
@@ -636,9 +695,14 @@ async function pollWork(){
       seenOrders=ids;
     }else if(user.tab==="drv"){
       await loadDriver();
-      const ids=(ST.openReqs||[]).map(r=>r.id);
+      const ids=(ST.openReqs||[]).concat(ST.rides||[]).map(r=>r.id);
       if(seenReqs&&ids.some(i=>!seenReqs.includes(i))) notifyIncoming();
       seenReqs=ids;
+    }else if(user.tab==="cust"&&cview==="drive"&&!ST.rd&&!ST.req){
+      const prev={}; (ST.trips||[]).forEach(t=>{prev[t.id]=t.status;});
+      await loadTrips();
+      if((ST.trips||[]).some(t=>prev[t.id]==="open"&&t.status==="accepted")) notifyIncoming();
+      const ae=document.activeElement; if(!(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))&&!cancelling) render();
     }else return;
     const a=document.activeElement, typing=a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
     const picking=[...document.querySelectorAll("input[type=file]")].some(f=>f.files&&f.files.length);   // keep pictures the owner just chose
@@ -707,7 +771,7 @@ async function afterLogin(s){
   const role=(p&&p[0]&&p[0].role)||"customer";
   const status=(p&&p[0]&&p[0].status)||"approved"; prevUnread=null; seenOrders=null; seenReqs=null; user={tab:(status!=="approved"&&role!=="admin")?"pend":{customer:"cust",owner:"own",admin:"adm",driver:"drv"}[role]}; cview="home"; tab=user.tab; ownView="due"; xtab="main"; loc=null; locId=null; authMsg=""; ST.profile=(p&&p[0])||{}; if(ST.profile.phone) ST.form.phone=ST.form.phone||ST.profile.phone;
   try{ await loadAreas(); const ar=ST.areas.find(x=>x.name===ST.profile.area_name); if(role==="customer"&&ar){ loc=ar.name; locId=ar.id; } if(user.tab==="pend") await loadPending(); else if(role==="owner") await loadOwner(); else if(role==="admin") { await loadAdmin(); await loadFeed(); } else if(role==="driver") await loadDriver(); else { await loadCust(); await loadMe(); await loadFeed(); } try{ if(user.tab!=="pend") await loadChats(); }catch(e){} }catch(e){ ST.err=e.message; }
-  seenOrders=(ST.orders||[]).filter(o=>o.status==="placed").map(o=>o.id); seenReqs=(ST.openReqs||[]).map(r=>r.id);
+  seenOrders=(ST.orders||[]).filter(o=>o.status==="placed").map(o=>o.id); seenReqs=(ST.openReqs||[]).concat(ST.rides||[]).map(r=>r.id);
   if(role!=="customer") loadBank();
 }
 async function loadBank(){
@@ -884,8 +948,20 @@ const H={
   docancel:(el,id)=>go(async()=>{await rpc("set_order_status",{p_order:id,p_status:"cancelled",p_reason:document.getElementById("why").value});cancelling=null;await loadOwner();}),
   pay:()=>{ownView="pay";}, stmt:()=>{ownView="stmt";}, back:()=>{ownView="due";},
   paid:()=>go(async()=>{await rpc("submit_payment",{});ownView="due";await reload();ST.note="Payment submitted. We will confirm it when we see it in our account.";}),
-  cview:el=>go(async()=>{cview=el.dataset.v;ST.shop=null;ST.req=false;ST.thread=null;ST.msgs=[];if(cview==="msgs")await loadChats();if(cview==="drive")await loadTrips();if(cview==="home")await loadFeed();if(cview==="apply")await loadMe();}),
+  cview:el=>go(async()=>{cview=el.dataset.v;ST.shop=null;ST.req=false;ST.rd=null;ST.thread=null;ST.msgs=[];if(cview==="msgs")await loadChats();if(cview==="drive")await loadTrips();if(cview==="home")await loadFeed();if(cview==="apply")await loadMe();}),
   newreq:()=>{ST.req=true;}, noreq:()=>{ST.req=false;},
+  newride:()=>{ST.rd={pickup:null,drop:null,res:{},quote:null};ST.req=false;}, rdback:()=>{ST.rd=null;},
+  rdclear:el=>{ST.rd[el.dataset.v]=null;ST.rd.quote=null;},
+  rdhere:()=>go(async()=>{const p=await getPos(); ST.rd.pickup={lat:p.lat,lng:p.lng,label:await nameOf(p)}; ST.rd.res.pickup=[]; await rdQuote();}),
+  rdsearch:el=>go(async()=>{const k=el.dataset.v, fk=k==="pickup"?"rdqp":"rdqd", inp=document.getElementById("f_"+fk), q=((inp&&inp.value)||"").trim(); ST.form[fk]=q;
+    if(q.length<3) throw new Error("Type at least 3 letters of the place name."); ST.rd.res[k]=await findPlaces(q);
+    if(!ST.rd.res[k].length) throw new Error("No place found. Try the name of a nearby school, shop, road or suburb."); }),
+  rdpick:(el,i)=>go(async()=>{const k=el.dataset.v, x=(ST.rd.res[k]||[])[i]; if(!x) return; ST.rd[k]=x; ST.rd.res[k]=[]; await rdQuote();}),
+  rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
+    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:f.rdphone||"",p_note:f.rdnote||""});
+    ST.rd=null; await loadTrips(); ST.note="Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts."; }),
+  rdnear:()=>go(async()=>{ST.here=await getPos();}),
+  takeride:(el,id)=>go(async()=>{await rpc("accept_car_ride",{p_request:id}); await loadDriver(); ST.note="Ride accepted. Call the customer and go to the pick-up.";}),
   sendreq:()=>go(async()=>{const f=ST.form, b=Math.round(parseFloat(f.budget)*100);
     await rpc("request_transport",{p_from:pl("rfrom"),p_to:pl("rto"),p_goods:f.goods||"furniture",p_description:f.desc||"",p_pickup:f.pickup||"",p_when:f.when||"",p_phone:f.phone||"",p_budget_cents:b>0?b:null});
     ST.req=false; await loadTrips(); ST.note="Request sent. Drivers on that route can now accept it. Tap Refresh to see who accepted."; }),
@@ -988,6 +1064,7 @@ document.addEventListener("click",e=>{
   const b=e.target.closest(".nmore"); if(b){ const p=b.previousElementSibling, open=!p.classList.toggle("clamp"); b.textContent=open?"Show less":"Read more"; }
 });
 document.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&(e.target.id==="f_rdqp"||e.target.id==="f_rdqd")){ e.preventDefault(); H.rdsearch({dataset:{v:e.target.id==="f_rdqp"?"pickup":"drop"}}); return; }
   if(e.key==="Enter"&&!e.shiftKey&&e.target.id==="chatin"){ e.preventDefault(); H.send(); return; } if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("vcard")){ e.preventDefault(); playCard(e.target); } });
 if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message",e=>{
   if(e.data&&e.data.type==="feed-updated"&&user&&!document.querySelector(".vcard.playing")) loadFeed().then(()=>{ if(user&&cview==="home"&&tab==="cust") render(); });
@@ -1065,9 +1142,9 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-09";
+const LEGAL_VERSION="policy-2026-10-11";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
-<p class="sub" style="margin:0 0 12px">Last updated: 9 October 2026.</p>
+<p class="sub" style="margin:0 0 12px">Last updated: 11 October 2026.</p>
 <h3>Who we are</h3>
 <p>Inanda Business Web (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is run by Lufefe Melane. The business is not yet registered as a company, so until it is, it is run by Lufefe Melane personally.</p>
 <p>Contact: smomelane@gmail.com or 081 710 6684.</p>
@@ -1077,6 +1154,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <ul>
 <li>Everyone: first name, surname, email address, cell number, your area in Inanda, your password (kept scrambled, so we cannot read it) and when you agreed to this policy.</li>
 <li>Customers: your orders, delivery addresses and transport requests (pick-up address, what is being moved and when).</li>
+<li>Car rides: the pick-up and drop-off places you choose (including a GPS point if you use your location), the distance and price of the ride, and the cell number you give for the driver. Your phone’s location is used only when you tap “Use my location” (customers) or “Show how far each ride is from me” (drivers). We do not track you in the background, and a driver’s own location is not saved on our servers.</li>
 <li>Shops and other businesses: business name, address, type, menu and prices, and the orders you receive.</li>
 <li>Drivers: your name, face photo, vehicle details (make, colour, type, number plate), routes and prices, ID number and a photo of your ID.</li>
 <li>The messages you send in chats and the reports you make.</li>
@@ -1088,7 +1166,8 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p>To run your account, deliver orders, match transport requests with drivers, check that drivers and businesses are real before they go live, keep the app safe, handle reports and complaints, show the work of businesses to customers, and contact you about your account. We do not sell your information, and we do not send marketing without your permission.</p>
 <h3>Who can see what</h3>
 <ul>
-<li>Your cell number is shared only with a driver you choose for a trip, so they can call you.</li>
+<li>Your cell number is shared only with a driver you choose for a trip, or the driver who accepts your car ride, so they can call you.</li>
+<li>While a car ride is waiting for a driver, approved drivers can see its pick-up and drop-off places, the distance and the price.</li>
 <li>A driver’s name, face photo, vehicle details and cell number are shown to customers once the driver is approved.</li>
 <li>A driver’s ID number and ID photo are seen only by the admin of Inanda Business Web.</li>
 <li>A shop sees the orders placed with it, including the delivery address.</li>
@@ -1097,6 +1176,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 </ul>
 <h3>Where it is kept</h3>
 <p>Your information is stored with Supabase in a data centre in Ireland (eu-west-1). The app files are hosted by GitHub, and the security check is provided by Cloudflare. These companies handle information for us, and they are outside South Africa. We use providers that have security measures in place.</p>
+<p>To find places and work out distances for car rides, the app sends the words you search for, or the pick-up and drop-off points, to free map services run by OpenStreetMap (place search) and the OSRM project (road distance). Their servers are outside South Africa, and they can see your internet address.</p>
 <h3>How long we keep it</h3>
 <p>We keep your information while your account is active. Pictures, photos and videos stay up until the business or we remove them, or until the business account is closed. If you ask us to delete your account, we delete your information, except what we must keep by law or to settle a dispute, such as payment records.</p>
 <h3>Keeping it safe</h3>
@@ -1112,11 +1192,11 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h3>Using the app</h3>
 <p>Inanda Business Web connects customers with local businesses and drivers. We are the platform. Shops sell their own goods, and drivers work for themselves. They do not work for us. Please give true details and keep your password private. You are responsible for what happens on your account.</p>
 <h3>Customers</h3>
-<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a trip is the price of the driver you choose. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
+<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
 <h3>Shops and other businesses</h3>
 <p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Web the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
 <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Inanda Business Web from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Inanda Business Web permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
-<p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
+<p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. Car rides can only be accepted by drivers registered with a car, and the first one to accept a ride gets it. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
 <h3>Payments and fees</h3>
 <p>Customers pay shops and drivers directly, in cash. Shops and drivers pay fees to Inanda Business Web by EFT, using the bank details and reference shown in the app. Tell us when you have paid. We confirm it once the money reaches our account.</p>
 <h3>Behaviour</h3>
