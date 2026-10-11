@@ -304,7 +304,7 @@ async function loadDriver(){
     sb(`/rest/v1/transport_offers?select=request_id,price_cents,status&driver_id=eq.${id}`),
     sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,description,when_text,price_cents,customer_id,ride_type,distance_km,pickup_lat,pickup_lng,drop_lat,drop_lng&chosen_driver_id=eq.${id}&status=in.(accepted,started)&order=id`),
     sb(`/rest/v1/driver_amount_due?select=*&driver_id=eq.${id}`)]);
-  ST.me=r[0][0]||null; ST.myRoutes=r[1]; ST.openReqs=r[2].filter(x=>x.ride_type!=="car"); ST.rides=[]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
+  ST.me=r[0][0]||null; ST.myRoutes=r[1]; ST.openReqs=(r[0][0]&&r[0][0].vehicle_type==="car")?[]:r[2].filter(x=>x.ride_type!=="car"); ST.rides=[]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
   if(ST.me&&ST.me.vehicle_type==="car"&&ST.online){ try{ ST.rides=await rpc("nearby_car_rides",{}); }catch(e){ ST.rides=[]; } }
   if(ST.jobs.length){ const c=await sb(`/rest/v1/transport_contacts?select=request_id,pickup_text,phone&request_id=in.(${ST.jobs.map(j=>j.id).join(",")})`); c.forEach(x=>{ST.contacts[x.request_id]=x;}); }
 }
@@ -508,11 +508,11 @@ function driver(){
     <div class="note">Pay your balance within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
   ${rideSec}
-  <h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}
+  ${me.vehicle_type==="car"?"":`<h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}`}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
-  <h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
+  ${me.vehicle_type==="car"?"":`<h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
     ${placeSel("rf","From")}${placeSel("rt","To")}${fld("pprice","Price in rand","e.g. 200","number")}
-    <button class="btn" data-a="addroute">Save route price</button></div>`;
+    <button class="btn" data-a="addroute">Save route price</button></div>`}`;
 }
 function owner(){
   if(ownView==="pay") return payScreen();
