@@ -217,7 +217,7 @@ async function loadOwner(){
 }
 async function loadAdmin(){
   const r=await Promise.all([sb("/rest/v1/shops?select=id,name,status&order=id"),sb("/rest/v1/shop_amount_due?select=*"),
-    sb("/rest/v1/drivers?select=id,full_name,cellphone,vehicle_make,vehicle_colour,plate_number,driver_private(id_number)&status=eq.pending"),
+    rpc("admin_pending_drivers",{}),
     sb("/rest/v1/payments?select=id,payer_type,reference,amount_cents&status=eq.pending&order=id"),
     sb("/rest/v1/transport_requests?select=id,from_place,to_place,price_cents,started_at&status=eq.started&order=id")]);
   ST.all=r[0].map(s=>({...s,...(r[1].find(d=>d.shop_id===s.id)||{})})); ST.pend=r[2]; ST.pays=r[3]; ST.xtrips=r[4];
@@ -283,7 +283,7 @@ async function openChat(id){
   rpc("mark_read",{p_thread:id}).then(loadChats).then(updateBadges).catch(()=>{});
   setTimeout(()=>{ const l=document.getElementById("chatlog"); if(l) l.scrollTop=l.scrollHeight; },0);
 }
-async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=*&id=eq.${sess.user.id}`); ST.me=m[0]||null; }
+async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,status,created_at&id=eq.${sess.user.id}`); ST.me=m[0]||null; }
 async function loadTrips(){
   ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
   const ids=ST.trips.map(t=>t.id);
@@ -298,7 +298,7 @@ async function signPhotos(list){
 }
 async function loadDriver(){
   const id=sess.user.id;
-  const r=await Promise.all([sb(`/rest/v1/drivers?select=*&id=eq.${id}`),
+  const r=await Promise.all([sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,status,created_at&id=eq.${id}`),
     sb(`/rest/v1/driver_routes?select=id,from_place,to_place,price_cents&driver_id=eq.${id}&order=from_place`),
     sb(`/rest/v1/transport_requests?select=id,from_place,to_place,goods_type,description,when_text,budget_cents,ride_type,distance_km,price_cents,pickup_lat,pickup_lng&status=eq.open&order=id`),
     sb(`/rest/v1/transport_offers?select=request_id,price_cents,status&driver_id=eq.${id}`),
