@@ -178,6 +178,12 @@ let tab="cust", ownView="due", cancelling=null, user=null, loc=null, locId=null;
 const dispName=()=>{ const p=ST.profile||{}, n=((p.name||"")+" "+(p.surname||"")).trim(); if(n) return n; if(ST.shop&&ST.shop.name) return ST.shop.name; if(ST.me&&ST.me.full_name) return ST.me.full_name; return ROLES[user.tab]||""; };
 const ROLES={cust:"Customer",own:"Shop owner",adm:"Admin",drv:"Driver",pend:"Your account"};
 let cview="home", xtab="main";
+const KEEPF={};   // photos a person already chose, so a redraw (for example after an error message) does not empty the boxes
+function restoreFiles(){
+  for(const id in KEEPF){ const el=document.getElementById(id); if(!el||el.type!=="file"||(el.files&&el.files.length)) continue;
+    try{ const dt=new DataTransfer(); dt.items.add(KEEPF[id]); el.files=dt.files; }catch(e){} }
+}
+const clearFiles=()=>{ for(const k in KEEPF) delete KEEPF[k]; };
 const blank=()=>({areas:[],shops:[],shop:null,menu:[],cart:{},address:"",orders:[],due:{},stmt:[],mine:[],all:[],err:"",note:"",offers:[],trips:[],rd:null,here:null,rides:[],me:null,myRoutes:[],openReqs:[],myOffers:[],contacts:{},jobs:[],dDue:{},pend:[],pays:[],xtrips:[],form:{nsrc:"Chris"},chats:[],thread:null,msgs:[],threadWith:null,unread:0,profile:{},req:false,news:[],vids:[],feedErr:"",reporting:false,members:[],reports:[],atab:"over",mfilter:"pending",openm:{},custAppr:false,membersErr:"",shopApp:null});
 let ST=blank();
 const tagFor = st => ({placed:["New","bad"],accepted:["Accepted",""],delivered:["Delivered","ok"],cancelled:["Cancelled",""],open:["Waiting for drivers","bad"],requested:["Waiting for driver","bad"],started:["Trip started",""],declined:["Declined",""],completed:["Arrived safely","ok"]}[st]||[st,""]);
@@ -220,7 +226,7 @@ async function loadAdmin(){
     rpc("admin_pending_drivers",{}),
     sb("/rest/v1/payments?select=id,payer_type,reference,amount_cents&status=eq.pending&order=id"),
     sb("/rest/v1/transport_requests?select=id,from_place,to_place,price_cents,started_at&status=eq.started&order=id")]);
-  ST.all=r[0].map(s=>({...s,...(r[1].find(d=>d.shop_id===s.id)||{})})); ST.pend=r[2]; ST.pays=r[3]; ST.xtrips=r[4];
+  ST.all=r[0].map(s=>({...s,...(r[1].find(d=>d.shop_id===s.id)||{})})); ST.pend=r[2]; try{ await signPhotos(ST.pend); }catch(e){} ST.pays=r[3]; ST.xtrips=r[4];
   try{ ST.members=await rpc("admin_members",{}); ST.membersErr=""; }catch(e){ ST.members=[]; ST.membersErr=e.message; }
   try{ ST.reports=await rpc("admin_reports",{}); }catch(e){ ST.reports=[]; }
   try{ const cs=await sb("/rest/v1/platform_settings?select=customers_need_approval&id=eq.1"); ST.custAppr=!!(cs&&cs[0]&&cs[0].customers_need_approval); }catch(e){}
@@ -283,22 +289,27 @@ async function openChat(id){
   rpc("mark_read",{p_thread:id}).then(loadChats).then(updateBadges).catch(()=>{});
   setTimeout(()=>{ const l=document.getElementById("chatlog"); if(l) l.scrollTop=l.scrollHeight; },0);
 }
-async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,status,created_at&id=eq.${sess.user.id}`); ST.me=m[0]||null; }
+async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${sess.user.id}`); ST.me=m[0]||null; }
 async function loadTrips(){
   ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
   const ids=ST.trips.map(t=>t.id);
-  ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_colour,plate_number,photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
+  ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_colour,plate_number,photo_path,car_photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
   await signPhotos(ST.offers.map(o=>o.drivers).filter(Boolean));
 }
 async function signPhotos(list){
-  const paths=list.map(d=>d.photo_path).filter(Boolean); if(!paths.length) return;
-  const r=await sb("/storage/v1/object/sign/driver-photos",{method:"POST",body:JSON.stringify({expiresIn:3600,paths})}), m={};
-  (r||[]).forEach(x=>{ if(x.signedURL) m[x.path]=SB_URL+"/storage/v1"+x.signedURL; });
-  list.forEach(d=>{ d.photo=m[d.photo_path]||""; });
+  const paths=[]; list.forEach(d=>{ if(d.photo_path) paths.push(d.photo_path); if(d.car_photo_path) paths.push(d.car_photo_path); });
+  const m={};
+  if(paths.length){
+    try{
+      const r=await sb("/storage/v1/object/sign/driver-photos",{method:"POST",body:JSON.stringify({expiresIn:3600,paths:Array.from(new Set(paths))})});
+      (r||[]).forEach(x=>{ if(x.signedURL) m[x.path]=SB_URL+"/storage/v1"+x.signedURL; });
+    }catch(e){}
+  }
+  list.forEach(d=>{ d.photo=m[d.photo_path]||""; d.car=m[d.car_photo_path]||""; });
 }
 async function loadDriver(){
   const id=sess.user.id;
-  const r=await Promise.all([sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,status,created_at&id=eq.${id}`),
+  const r=await Promise.all([sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${id}`),
     sb(`/rest/v1/driver_routes?select=id,from_place,to_place,price_cents&driver_id=eq.${id}&order=from_place`),
     sb(`/rest/v1/transport_requests?select=id,from_place,to_place,goods_type,description,when_text,budget_cents,ride_type,distance_km,price_cents,pickup_lat,pickup_lng&status=eq.open&order=id`),
     sb(`/rest/v1/transport_offers?select=request_id,price_cents,status&driver_id=eq.${id}`),
@@ -362,7 +373,8 @@ const same=(a,b)=>String(a||"").trim().toLowerCase()===String(b||"").trim().toLo
 const pl=k=>{const v=ST.form[k]||(ST.areas[0]&&ST.areas[0].name)||""; return v==="__other"?(ST.form[k+"o"]||"").trim():v;};
 const placeSel=(k,l)=>sel(k,l,[...ST.areas.map(a=>[a.name,a.name]),["__other","Another place…"]])+(ST.form[k]==="__other"?fld(k+"o","Place name"):"");
 const GOODS=[["furniture","Furniture"],["livestock","Livestock"],["material","Material"],["goods","Other goods"]];
-const person=d=>`<div style="display:flex;gap:12px;align-items:center">${d.photo?`<img src="${esc(d.photo)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`:'<div style="width:64px;height:64px;border-radius:50%;background:var(--bg)"></div>'}<div><b>${esc(d.full_name)}</b><br><small>${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}</small></div></div>`;
+const carCardHtml=()=>`<div class="card"><b>Add a photo of your car</b><p style="margin:6px 0 10px">Customers see it so they can recognise your car. You can add it once.</p><label for="f_carnew">Photo of your car</label><input id="f_carnew" type="file" accept="image/*"><button class="btn" data-a="savecar">Save car photo</button></div>`;
+const person=d=>`<div style="display:flex;gap:12px;align-items:center">${d.photo?`<img src="${esc(d.photo)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`:'<div style="width:64px;height:64px;border-radius:50%;background:var(--bg)"></div>'}<div><b>${esc(d.full_name)}</b><br><small>${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}</small></div></div>`+(d.car?`<img src="${esc(d.car)}" alt="Photo of the car" style="width:100%;max-height:200px;border-radius:12px;object-fit:cover;margin-top:10px">`:"");
 const area=(k,l,ph="")=>`<label for="f_${k}">${l}</label><textarea id="f_${k}" rows="5" style="width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)" data-a="form" data-k="${k}" placeholder="${ph}">${esc(ST.form[k]||"")}</textarea>`;
 function videoBar(){
   if(!ST.vids.length) return "";
@@ -546,13 +558,13 @@ function reqForm(){
 }
 function applyScreen(){
   const m=ST.me;
-  if(m) return `<h1>Driver application</h1>${msgs()}<div class="card"><div class="banner ${m.status==="approved"?"ok":"bad"}"><strong>${m.status==="approved"?"You are approved":m.status==="suspended"?"Your account is suspended":"Waiting for approval"}</strong>${m.status==="approved"?"Log out and log in again to open your driver screen.":"We are checking your details. You will be able to see your driver screen once you are approved."}</div></div>`;
-  return `<h1>Become a driver</h1><p class="sub">Customers will see your name, face photo and vehicle details. Your cell number and ID number stay hidden from customers.</p>${msgs()}<div class="card">
+  if(m) return `<h1>Driver application</h1>${msgs()}<div class="card"><div class="banner ${m.status==="approved"?"ok":"bad"}"><strong>${m.status==="approved"?"You are approved":m.status==="suspended"?"Your account is suspended":"Waiting for approval"}</strong>${m.status==="approved"?"Log out and log in again to open your driver screen.":"We are checking your details. You will be able to see your driver screen once you are approved."}</div></div>${m.car_photo_path?"":carCardHtml()}`;
+  return `<h1>Become a driver</h1><p class="sub">Customers will see your name, face photo, car photo and vehicle details. Your cell number and ID number stay hidden from customers.</p>${msgs()}<div class="card">
   ${fld("name","Full name")}${fld("phone","Cellphone number","","tel")}${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}
   ${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
   <label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*">
-  <label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">
-  <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox"><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo and vehicle to customers.</span></label>
+  <label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">
+  <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox"><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
   <button class="btn" data-a="apply">Send application</button></div>`;
 }
 function driver(){
@@ -560,6 +572,7 @@ function driver(){
   const me=ST.me; if(!me) return applyScreen();
   const d=ST.dDue||{}, due=d.amount_due_cents||0, offered=new Set(ST.myOffers.map(o=>o.request_id));
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Inanda Business Web.</div>':"");
+  const carCard=me.car_photo_path?"":carCardHtml();
   const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div><small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
   const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and new ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online and it is not saved.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
@@ -573,7 +586,7 @@ function driver(){
     <div class="row"><span>Amount due</span><b class="big">${R(due)}</b></div>
     <div class="note">Pay your balance within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
-  ${rideSec}
+  ${carCard}${rideSec}
   <h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
   <h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
@@ -640,7 +653,7 @@ const idn=d=>{const p=d.driver_private; return ((Array.isArray(p)?p[0]:p)||{}).i
 const catLabel=c=>({food:"Food",construction:"Construction",beauty:"Beauty"}[c]||"Food");
 function adminOverview(){
   const owners=(ST.pendOwn||[]).map(o=>`<div class="card"><div class="row"><b>${esc(o.app.shop_name)}</b><span class="tag">${esc(catLabel(o.app.category))}</span></div><small>${esc(o.name)} ${esc(o.surname||"")} · ${esc(o.phone||"")}<br>${esc(o.app.shop_address||"")}${o.app.area_name?" · "+esc(o.app.area_name):""}</small><button class="btn" data-a="approveown" data-v="${o.id}">Approve business</button></div>`).join("");
-  const pend=ST.pend.map(d=>`<div class="card"><b>${esc(d.full_name)}</b><br><small>${esc(d.cellphone)} · ${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}<br>ID number: ${esc(idn(d))}<br>Check the ID photo in Supabase > Storage > driver-ids before approving.</small><button class="btn" data-a="approve" data-v="${d.id}">Approve driver</button></div>`).join("");
+  const pend=ST.pend.map(d=>`<div class="card"><b>${esc(d.full_name)}</b><br><small>${esc(d.cellphone)} · ${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}<br>ID number: ${esc(idn(d))}<br>Check the ID photo in Supabase > Storage > driver-ids before approving.</small><div style="display:flex;gap:8px;margin:8px 0">${d.photo?`<img src="${esc(d.photo)}" alt="Face" style="width:48%;height:130px;border-radius:10px;object-fit:cover">`:""}${d.car?`<img src="${esc(d.car)}" alt="Car" style="width:48%;height:130px;border-radius:10px;object-fit:cover">`:"<small>No car photo yet.</small>"}</div><button class="btn" data-a="approve" data-v="${d.id}">Approve driver</button></div>`).join("");
   const pays=ST.pays.map(p=>`<div class="card"><div class="row"><b>${esc(p.reference)}</b><b>${R(p.amount_cents)}</b></div><small>${p.payer_type==="shop"?"Shop owner":"Driver"} says they have paid. Check your bank account first.</small><button class="btn" data-a="payconfirm" data-id="${p.id}">Money received</button><button class="btn ghost" data-a="payreject" data-id="${p.id}">Not received</button></div>`).join("");
   const trips=ST.xtrips.map(t=>`<div class="card"><div class="row"><b>Trip #${t.id}: ${esc(t.from_place)} → ${esc(t.to_place)}</b><b>${R(t.price_cents)}</b></div><small>Started, but the customer has not tapped arrived. Check the customer is safe.</small><button class="btn ghost" data-a="tripdone" data-id="${t.id}">Mark arrived</button></div>`).join("");
   const rows=ST.all.map(s=>{const o=s.status==="open";return `<div class="card"><div class="row"><b>${esc(s.name)}</b><span class="tag ${o?"ok":"bad"}">${o?"Open":"Paused"}</span></div>
@@ -873,14 +886,14 @@ async function doSignup(){
   snapForm();
   const f=ST.form, t=f.sacct||"customer", biz=t==="owner", drv=t==="driver", email=(f.semail||"").trim(), password=f.spwv||"", phone=(f.sphone||"").replace(/[\s-]/g,""),
     extra=biz?{account_type:"owner",shop_name:(f.sshop||"").trim(),shop_address:(f.saddr||"").trim(),category:f.scat||"food"}:drv?{account_type:"driver"}:{};
-  const phf=(document.getElementById("f_photo")||{}).files, idf=(document.getElementById("f_idfile")||{}).files;
+  const phf=(document.getElementById("f_photo")||{}).files, idf=(document.getElementById("f_idfile")||{}).files, carf=(document.getElementById("f_carphoto")||{}).files;
   try{
     if(!(f.sname||"").trim()||!(f.ssurname||"").trim()) throw new Error("Please type your first name and surname.");
     if(!f.sarea) throw new Error("Please choose your location.");
     if(biz&&!(f.sshop||"").trim()) throw new Error("Please type your business name.");
     if(drv){
       if(!(f.make||"").trim()||!(f.colour||"").trim()||!(f.plate||"").trim()||!(f.idno||"").trim()) throw new Error("Please fill in your vehicle make, colour, number plate and ID number.");
-      if(!(phf&&phf[0])||!(idf&&idf[0])) throw new Error("Please add your face photo and a photo of your ID.");
+      if(!(phf&&phf[0])||!(carf&&carf[0])||!(idf&&idf[0])) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
     }
     if(!/^(\+27|0)[0-9]{9}$/.test(phone)) throw new Error("Please type a valid cell number, for example 081 234 5678.");
     if(!email) throw new Error("Please type your email address.");
@@ -889,13 +902,13 @@ async function doSignup(){
     tsCheck();
     const r=await sb("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password,data:{name:f.sname.trim(),surname:f.ssurname.trim(),area:f.sarea,phone,terms_version:LEGAL_VERSION,...extra},...tsMeta()})});
     if(r&&r.access_token){
-      const photo=phf&&phf[0], idfile=idf&&idf[0];
+      const photo=phf&&phf[0], idfile=idf&&idf[0], carfile=carf&&carf[0];
       await afterLogin(r); f.spwv="";
       if(drv){
         f.name=f.sname.trim()+" "+f.ssurname.trim(); f.phone=phone;
         try{
-          const pp=await upload("driver-photos",photo,"photo"), ip=await upload("driver-ids",idfile,"id");
-          await rpc("apply_as_driver",{p_name:f.name,p_phone:phone,p_make:f.make.trim(),p_colour:f.colour.trim(),p_plate:f.plate.trim(),p_type:f.vtype||"bakkie",p_id_number:f.idno.trim(),p_photo_path:pp,p_id_doc_path:ip});
+          const pp=await upload("driver-photos",photo,"photo"), cp=await upload("driver-photos",carfile,"car"), ip=await upload("driver-ids",idfile,"id");
+          await rpc("apply_as_driver",{p_name:f.name,p_phone:phone,p_make:f.make.trim(),p_colour:f.colour.trim(),p_plate:f.plate.trim(),p_type:f.vtype||"bakkie",p_id_number:f.idno.trim(),p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp}); clearFiles();
           await loadMe(); ST.note="Application sent. We will check your details and approve you.";
         }catch(e){ ST.err="Your account was created, but we could not send your vehicle details ("+e.message+"). Tap Become a driver to send them again."; }
       }
@@ -946,7 +959,7 @@ function loginScreen(){
   <button class="sm" style="margin-top:12px" data-a="forgot">Forgot password?</button>
   <div class="note">Shop owners and admin get their access from Inanda Business Web. Log in with the email you were given.</div></div>`;
 }
-const drvFields=()=>`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
+const drvFields=()=>`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
 function signupScreen(){
   const areas=[["","Choose your location"],...ST.areas.map(a=>[a.name,a.name])];
   return `<div class="card"><h2>Create account</h2>
@@ -958,11 +971,11 @@ function signupScreen(){
   ${ST.form.sacct==="driver"?drvFields():""}
   ${fld("sphone","Cell number","e.g. 081 234 5678","tel")}
   <details class="privnote" open><summary>Privacy note: how we use your cell number</summary>
-    <p style="margin:8px 0 0">Your cell number is private. It is never shown to shops, drivers or other customers: you talk to them through messages and voice notes in the app. If you report a chat, the last 30 messages of that chat are sent to the admin.${ST.form.sacct==="driver"?" Once you are approved, customers see your name, face photo and vehicle details. Your cell number, ID number and ID photo are only seen by the admin.":""} We keep your details safely, and you can ask us to delete them.</p></details>
+    <p style="margin:8px 0 0">Your cell number is private. It is never shown to shops, drivers or other customers: you talk to them through messages and voice notes in the app. If you report a chat, the last 30 messages of that chat are sent to the admin.${ST.form.sacct==="driver"?" Once you are approved, customers see your name, face photo, car photo and vehicle details. Your cell number, ID number and ID photo are only seen by the admin.":""} We keep your details safely, and you can ask us to delete them.</p></details>
   <p style="margin:8px 0 0"><button type="button" class="sm" data-legal="open">Read the full privacy policy and terms</button></p>
   ${fld("semail","Email address","","email")}
   <label for="spw">Create a password</label><input id="spw" type="password" autocomplete="new-password" value="${esc(ST.form.spwv||"")}" placeholder="At least 6 characters">
-  <label class="chk"><input type="checkbox" data-a="chk" data-k="sagree" ${ST.form.sagree?"checked":""}><span>${ST.form.sacct==="driver"?"I have read the privacy policy and terms. I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo and vehicle to customers.":"I have read the privacy policy and terms, and I agree."}</span></label>
+  <label class="chk"><input type="checkbox" data-a="chk" data-k="sagree" ${ST.form.sagree?"checked":""}><span>${ST.form.sacct==="driver"?"I have read the privacy policy and terms. I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.":"I have read the privacy policy and terms, and I agree."}</span></label>
   ${tsBox()}
   <button class="btn" data-a="signup">Create account</button>
   <button class="btn ghost" data-a="tologin">Back to log in</button></div>`;
@@ -990,7 +1003,7 @@ function render(){
   const cust=user&&user.tab==="cust";
   document.getElementById("bar").innerHTML = user?`<span><b style="display:inline-block;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${esc(dispName())}</b>${cust&&loc?" · "+esc(loc):""}</span><span>${cust&&loc?'<button class="sm" data-a="area">Change area</button> ':''}<button class="sm" data-a="sndtoggle" aria-label="Message sound on or off">${soundOn?"🔔":"🔕"}</button> <button class="sm" data-a="refresh">Refresh</button> <button class="sm" data-a="logout">Log out</button></span>`:"";
   document.getElementById("app").innerHTML = !user?(authView==="forgot"?forgotScreen():authView==="reset"?resetScreen():authView==="signup"?signupScreen():loginScreen()):tab==="pend"?pendingScreen():tab==="cust"?customer():msgTabs()+(xtab==="msgs"?messagesScreen():tab==="own"?owner():tab==="drv"?driver():admin());
-  if(!user) tsMount(); wishVis(); mountRideMap();
+  if(!user) tsMount(); wishVis(); mountRideMap(); restoreFiles();
 }
 const patchShop=(id,body)=>sb("/rest/v1/shops?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(body)});
 const H={
@@ -1007,7 +1020,7 @@ const H={
   mreact:el=>go(async()=>{ await rpc("reactivate_member",{p_user:el.dataset.v}); await loadAdmin(); ST.note="Reactivated."; }),
   rclose:(el,id)=>go(async()=>{ await rpc("resolve_report",{p_report:id}); await loadAdmin(); }),
   forgot:()=>{authView="forgot";authMsg="";}, tosignup:()=>{authView="signup";authMsg="";if(!ST.areas.length) loadAreas().then(()=>render()).catch(()=>{});}, tologin:()=>{authView="login";authMsg="";},
-  logout:()=>{try{ if(sess&&sess.access_token) fetch(SB_URL+"/auth/v1/logout?scope=local",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+sess.access_token}}).catch(()=>{}); }catch(e){} const keep=ST.areas; user=null;loc=null;locId=null;sess=null;BANK=null;ST=blank();ST.areas=keep;prevUnread=null;seenOrders=null;seenReqs=null;authView="login";localStorage.removeItem("inanda_sess");},
+  logout:()=>{clearFiles(); try{ if(sess&&sess.access_token) fetch(SB_URL+"/auth/v1/logout?scope=local",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+sess.access_token}}).catch(()=>{}); }catch(e){} const keep=ST.areas; user=null;loc=null;locId=null;sess=null;BANK=null;ST=blank();ST.areas=keep;prevUnread=null;seenOrders=null;seenReqs=null;authView="login";localStorage.removeItem("inanda_sess");},
   area:()=>{loc=null;locId=null;ST.shop=null;},
   loc:el=>go(async()=>{loc=el.dataset.v;locId=+el.dataset.id;ST.shop=null;await loadCust();}),
   refresh:()=>go(reload),
@@ -1045,6 +1058,8 @@ const H={
   rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
     await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||""});
     ST.rd=null; await loadTrips(); ST.note="Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts."; }),
+  savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
+    const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
   goonline:()=>go(async()=>{ST.online=true; await loadDriver();}),
   gooffline:()=>{ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr="";},
   takeride:(el,id)=>go(async()=>{const p=ST.here||await getPos(); await rpc("accept_car_ride",{p_request:id,p_lat:p.lat,p_lng:p.lng}); await loadDriver(); ST.note="Ride accepted. Message the customer in the app and go to the pick-up.";}),
@@ -1058,11 +1073,11 @@ const H={
   docanceltrip:(el,id)=>go(async()=>{await rpc("set_transport_status",{p_request:id,p_status:"cancelled",p_reason:document.getElementById("why").value});cancelling=null;await loadTrips();}),
   apply:()=>go(async()=>{const f=ST.form;
     if(!document.getElementById("f_consent").checked) throw new Error("Please tick the box to agree.");
-    const ph=document.getElementById("f_photo").files[0], idf=document.getElementById("f_idfile").files[0];
-    if(!ph||!idf) throw new Error("Please add your face photo and a photo of your ID.");
-    const pp=await upload("driver-photos",ph,"photo"), ip=await upload("driver-ids",idf,"id");
-    await rpc("apply_as_driver",{p_name:f.name||"",p_phone:f.phone||"",p_make:f.make||"",p_colour:f.colour||"",p_plate:f.plate||"",p_type:f.vtype||"bakkie",p_id_number:f.idno||"",p_photo_path:pp,p_id_doc_path:ip});
-    await loadMe(); ST.note="Application sent. We will check your details and approve you."; }),
+    const ph=document.getElementById("f_photo").files[0], idf=document.getElementById("f_idfile").files[0], carf=document.getElementById("f_carphoto").files[0];
+    if(!ph||!carf||!idf) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
+    const pp=await upload("driver-photos",ph,"photo"), cp=await upload("driver-photos",carf,"car"), ip=await upload("driver-ids",idf,"id");
+    await rpc("apply_as_driver",{p_name:f.name||"",p_phone:f.phone||"",p_make:f.make||"",p_colour:f.colour||"",p_plate:f.plate||"",p_type:f.vtype||"bakkie",p_id_number:f.idno||"",p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp});
+    clearFiles(); await loadMe(); ST.note="Application sent. We will check your details and approve you."; }),
   offer:(el,id)=>go(async()=>{await rpc("offer_transport",{p_request:id});await loadDriver();ST.note="Sent. The customer will choose a driver.";}),
   jstart:(el,id)=>go(async()=>{await rpc("set_transport_status",{p_request:id,p_status:"started"});await loadDriver();}),
   addroute:()=>go(async()=>{const f=ST.form, from=pl("rf"), to=pl("rt"), cents=Math.round(parseFloat(f.pprice)*100);
@@ -1131,6 +1146,7 @@ document.body.addEventListener("click",e=>{
 });
 document.body.addEventListener("change",e=>{
   const t=e.target, a=t.dataset.a;
+  if(t.type==="file"&&["f_photo","f_idfile","f_carphoto","f_carnew"].includes(t.id)){ if(t.files&&t.files[0]) KEEPF[t.id]=t.files[0]; else delete KEEPF[t.id]; }
   if(a==="bank"){ if(BANK){BANK[t.dataset.k]=t.value; saveBank(t.dataset.k,t.value);} }
   else if(a==="addr"){ ST.address=t.value; }
   else if(a==="chk"){ ST.form[t.dataset.k]=t.checked; }
@@ -1229,7 +1245,7 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-11d";
+const LEGAL_VERSION="policy-2026-10-11e";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p class="sub" style="margin:0 0 12px">Last updated: 11 October 2026.</p>
 <h3>Who we are</h3>
@@ -1243,7 +1259,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <li>Customers: your orders, delivery addresses and transport requests (pick-up address, what is being moved and when).</li>
 <li>Car rides: the pick-up and drop-off places you choose (including a GPS point if you use your location), the distance and price of the ride, and any note you write for the driver. A customer’s phone location is used only when they tap “Use my location”. A driver’s location is sent to our server only while the driver is online, to find rides within a few kilometres, and it is not saved.</li>
 <li>Shops and other businesses: business name, address, type, menu and prices, and the orders you receive.</li>
-<li>Drivers: your name, face photo, vehicle details (make, colour, type, number plate), routes and prices, ID number and a photo of your ID.</li>
+<li>Drivers: your name, face photo, a photo of your car, vehicle details (make, colour, type, number plate), routes and prices, ID number and a photo of your ID.</li>
 <li>The messages you send in chats and the reports you make.</li>
 <li>Voice notes you send in chats. They are kept privately and can only be played by the people in that chat and by the admin when a chat is reported or when we need to keep people safe.</li> <li>Businesses: the pictures, before-and-after photos and short videos you post (for example menus, specials and your work), and the captions and titles you write. A picture or video can show a person, so please read the picture and video rules in Part 2.</li> <li>When you upload a photo, we record that you confirmed you have permission to use it, and when you did so.</li>
 <li>A security check (Cloudflare Turnstile) runs when you log in or sign up, to tell people from bots. It may use details about your device and browser to do this.</li>
@@ -1256,7 +1272,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <ul>
 <li>Cell numbers are not shared between customers and drivers. They talk to each other through messages and voice notes in the app.</li>
 <li>While a car ride is waiting, car drivers who are online within a few kilometres of the pick-up can see its pick-up and drop-off places, the distance and the price.</li>
-<li>A driver’s name, face photo and vehicle details are shown to customers once the driver is approved.</li>
+<li>A driver’s name, face photo, car photo and vehicle details are shown to customers once the driver is approved.</li>
 <li>A driver’s ID number and ID photo are seen only by the admin of Inanda Business Web.</li>
 <li>A shop sees the orders placed with it, including the delivery address.</li>
 <li>Only the two people in a chat can read it and play its voice notes. If someone reports a chat, the last 30 messages of that chat are sent to the admin so we can check what happened.</li>
