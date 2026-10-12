@@ -233,8 +233,9 @@ async function loadAdmin(){
   ST.pendOwn=[];
   ST.recentPosts=[]; try{ ST.recentPosts=await sb("/rest/v1/shop_posts?select=id,caption,image_url,before_url,shop_id,shops(name)&order=id.desc&limit=12"); }catch(e){}
   try{
-    let ap; try{ ap=await sb("/rest/v1/shop_applications?select=user_id,shop_name,shop_address,area_name,category&order=created_at"); }
-    catch(e){ ap=(await sb("/rest/v1/shop_applications?select=user_id,shop_name,shop_address,area_name&order=created_at")).map(a=>({...a,category:"food"})); }
+    let ap; try{ ap=await sb("/rest/v1/shop_applications?select=user_id,shop_name,shop_address,area_name,category,trade,work_places&order=created_at"); }
+    catch(e0){ try{ ap=await sb("/rest/v1/shop_applications?select=user_id,shop_name,shop_address,area_name,category&order=created_at"); }
+    catch(e){ ap=(await sb("/rest/v1/shop_applications?select=user_id,shop_name,shop_address,area_name&order=created_at")).map(a=>({...a,category:"food"})); } }
     if(ap.length){
       const pr=await sb("/rest/v1/profiles?select=id,name,surname,phone&role=eq.customer&id=in.("+ap.map(a=>a.user_id).join(",")+")");
       ST.pendOwn=pr.map(x=>({...x,app:ap.find(a=>a.user_id===x.id)}));
@@ -372,6 +373,8 @@ const sel=(k,l,opts)=>`<label for="f_${k}">${l}</label><select id="f_${k}" data-
 const same=(a,b)=>String(a||"").trim().toLowerCase()===String(b||"").trim().toLowerCase();
 const pl=k=>{const v=ST.form[k]||(ST.areas[0]&&ST.areas[0].name)||""; return v==="__other"?(ST.form[k+"o"]||"").trim():v;};
 const placeSel=(k,l)=>sel(k,l,[...ST.areas.map(a=>[a.name,a.name]),["__other","Another place…"]])+(ST.form[k]==="__other"?fld(k+"o","Place name"):"");
+const TRADES=["Plumber","Electrician","Builder","Painter","Tiler","Roofer","Carpenter","Welder","Paving"];
+const cleanTxt=(s,max)=>{ const t=String(s||"").replace(/\s+/g," ").trim(); return (t.length>=2&&t.length<=max&&/^[\p{L}\p{N} .,'’()-]+$/u.test(t)&&/\p{L}/u.test(t)&&!/\.[\p{L}\p{N}]/u.test(t)&&!/(https?|www)/i.test(t))?t:""; };
 const GOODS=[["furniture","Furniture"],["livestock","Livestock"],["material","Material"],["goods","Other goods"]];
 const carCardHtml=()=>`<div class="card"><b>Add a photo of your car</b><p style="margin:6px 0 10px">Customers see it so they can recognise your car. You can add it once.</p><label for="f_carnew">Photo of your car</label><input id="f_carnew" type="file" accept="image/*"><button class="btn" data-a="savecar">Save car photo</button></div>`;
 const person=d=>`<div style="display:flex;gap:12px;align-items:center">${d.photo?`<img src="${esc(d.photo)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`:'<div style="width:64px;height:64px;border-radius:50%;background:var(--bg)"></div>'}<div><b>${esc(d.full_name)}</b><br><small>${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}</small></div></div>`+(d.car?`<img src="${esc(d.car)}" alt="Photo of the car" style="width:100%;max-height:200px;border-radius:12px;object-fit:cover;margin-top:10px">`:"");
@@ -416,7 +419,7 @@ function customer(){
   if(cview==="apply") return seg+applyScreen();
   if(cview==="msgs") return seg+messagesScreen();
   const waiting=(ST.profile&&ST.profile.requested_role==="owner")?'<div class="banner bad"><strong>Your business is waiting for approval</strong>We are checking your details. After you are approved, log out and log in again to open your shop screen.</div>':(ST.profile&&ST.profile.requested_role==="driver"&&ST.me&&ST.me.status==="pending")?'<div class="banner bad"><strong>Your driver application is waiting for approval</strong>We are checking your details. After you are approved, log out and log in again to open your driver screen.</div>':"";
-  return seg+waiting+(cview==="home"?homeTiles()+feed():cview==="drive"?driveTab():(loc?food():areaScreen()))+(ST.me?"":'<button class="sm" style="margin:2px 0 14px" data-a="cview" data-v="apply">Become a driver</button>');
+  return seg+waiting+(cview==="home"?homeTiles()+feed():cview==="drive"?driveTab():(cview==="build"?buildScreen():(loc?food():areaScreen())))+(ST.me?"":'<button class="sm" style="margin:2px 0 14px" data-a="cview" data-v="apply">Become a driver</button>');
 }
 // ---- car rides: phone GPS, place search and a price worked out from the distance ----
 function getPos(){
@@ -652,7 +655,7 @@ function payScreen(){
 const idn=d=>{const p=d.driver_private; return ((Array.isArray(p)?p[0]:p)||{}).id_number||"";};
 const catLabel=c=>({food:"Food",construction:"Construction",beauty:"Beauty"}[c]||"Food");
 function adminOverview(){
-  const owners=(ST.pendOwn||[]).map(o=>`<div class="card"><div class="row"><b>${esc(o.app.shop_name)}</b><span class="tag">${esc(catLabel(o.app.category))}</span></div><small>${esc(o.name)} ${esc(o.surname||"")} · ${esc(o.phone||"")}<br>${esc(o.app.shop_address||"")}${o.app.area_name?" · "+esc(o.app.area_name):""}</small><button class="btn" data-a="approveown" data-v="${o.id}">Approve business</button></div>`).join("");
+  const owners=(ST.pendOwn||[]).map(o=>`<div class="card"><div class="row"><b>${esc(o.app.shop_name)}</b><span class="tag">${esc(catLabel(o.app.category))}</span></div><small>${esc(o.name)} ${esc(o.surname||"")} · ${esc(o.phone||"")}<br>${esc(o.app.shop_address||"")}${o.app.area_name?" · "+esc(o.app.area_name):""}${o.app.area_name&&!(ST.areas||[]).some(a=>same(a.name,o.app.area_name))?"<br>New place: approving adds it to the list.":""}${o.app.category==="construction"?"<br>Trade: <b>"+esc(o.app.trade||"not given")+"</b><br>Works in: "+esc((o.app.work_places||[]).join(", ")||"not given"):""}</small><button class="btn" data-a="approveown" data-v="${o.id}">Approve business</button></div>`).join("");
   const pend=ST.pend.map(d=>`<div class="card"><b>${esc(d.full_name)}</b><br><small>${esc(d.cellphone)} · ${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}<br>ID number: ${esc(idn(d))}<br>Check the ID photo in Supabase > Storage > driver-ids before approving.</small><div style="display:flex;gap:8px;margin:8px 0">${d.photo?`<img src="${esc(d.photo)}" alt="Face" style="width:48%;height:130px;border-radius:10px;object-fit:cover">`:""}${d.car?`<img src="${esc(d.car)}" alt="Car" style="width:48%;height:130px;border-radius:10px;object-fit:cover">`:"<small>No car photo yet.</small>"}</div><button class="btn" data-a="approve" data-v="${d.id}">Approve driver</button></div>`).join("");
   const pays=ST.pays.map(p=>`<div class="card"><div class="row"><b>${esc(p.reference)}</b><b>${R(p.amount_cents)}</b></div><small>${p.payer_type==="shop"?"Shop owner":"Driver"} says they have paid. Check your bank account first.</small><button class="btn" data-a="payconfirm" data-id="${p.id}">Money received</button><button class="btn ghost" data-a="payreject" data-id="${p.id}">Not received</button></div>`).join("");
   const trips=ST.xtrips.map(t=>`<div class="card"><div class="row"><b>Trip #${t.id}: ${esc(t.from_place)} → ${esc(t.to_place)}</b><b>${R(t.price_cents)}</b></div><small>Started, but the customer has not tapped arrived. Check the customer is safe.</small><button class="btn ghost" data-a="tripdone" data-id="${t.id}">Mark arrived</button></div>`).join("");
@@ -890,6 +893,18 @@ async function doSignup(){
   try{
     if(!(f.sname||"").trim()||!(f.ssurname||"").trim()) throw new Error("Please type your first name and surname.");
     if(!f.sarea) throw new Error("Please choose your location.");
+    const areaName=f.sarea==="__other"?cleanTxt(f.sareao,40):f.sarea;
+    if(!areaName) throw new Error("Please type your place name using letters and numbers only (2 to 40 characters, no links).");
+    if(biz&&(f.scat||"food")==="construction"){
+      const tr=f.strade==="__other"?cleanTxt(f.stradeo,30):(f.strade||"");
+      if(!tr) throw new Error("Please choose your trade, or type it using letters only (2 to 30 characters, no links).");
+      const raw=String(f.swpx||"").split(",").map(x=>x.trim()).filter(Boolean), ex=raw.map(x=>cleanTxt(x,40)).filter(Boolean);
+      if(ex.length<raw.length) throw new Error("One of the other places you typed is not valid. Use letters and numbers only (2 to 40 characters, no links).");
+      const wp=[...ST.areas.filter(a=>f["swp_"+a.id]).map(a=>a.name),...ex];
+      if(!wp.length) throw new Error("Please tick or type at least one place you work in.");
+      if(wp.length>15) throw new Error("You can list up to 15 places.");
+      extra.trade=tr; extra.work_places=wp;
+    }
     if(biz&&!(f.sshop||"").trim()) throw new Error("Please type your business name.");
     if(drv){
       if(!(f.make||"").trim()||!(f.colour||"").trim()||!(f.plate||"").trim()||!(f.idno||"").trim()) throw new Error("Please fill in your vehicle make, colour, number plate and ID number.");
@@ -900,7 +915,7 @@ async function doSignup(){
     if(password.length<6) throw new Error("The password must be at least 6 characters.");
     if(!f.sagree) throw new Error("Please tick the box to say you have read the privacy note.");
     tsCheck();
-    const r=await sb("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password,data:{name:f.sname.trim(),surname:f.ssurname.trim(),area:f.sarea,phone,terms_version:LEGAL_VERSION,...extra},...tsMeta()})});
+    const r=await sb("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password,data:{name:f.sname.trim(),surname:f.ssurname.trim(),area:areaName,phone,terms_version:LEGAL_VERSION,...extra},...tsMeta()})});
     if(r&&r.access_token){
       const photo=phf&&phf[0], idfile=idf&&idf[0], carfile=carf&&carf[0];
       await afterLogin(r); f.spwv="";
@@ -960,14 +975,15 @@ function loginScreen(){
   <div class="note">Shop owners and admin get their access from Inanda Business Web. Log in with the email you were given.</div></div>`;
 }
 const drvFields=()=>`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
+const constrFields=()=>sel("strade","Your trade",[["","Choose your trade"],...TRADES.map(t=>[t,t]),["__other","Other (type it)"]])+(ST.form.strade==="__other"?fld("stradeo","Type your trade","e.g. Glazier"):"")+'<b style="display:block;margin-top:12px">Places you work in</b><small>Tick every place you work in. Customers can search for them.</small>'+ST.areas.map(a=>`<label class="chk"><input type="checkbox" data-a="chk" data-k="swp_${a.id}" ${ST.form["swp_"+a.id]?"checked":""}><span>${esc(a.name)}</span></label>`).join("")+fld("swpx","Other places you work in","Separate with commas");
 function signupScreen(){
-  const areas=[["","Choose your location"],...ST.areas.map(a=>[a.name,a.name])];
+  const areas=[["","Choose your location"],...ST.areas.map(a=>[a.name,a.name]),["__other","My place is not on the list"]];
   return `<div class="card"><h2>Create account</h2>
   ${authMsg?`<div class="banner bad">${esc(authMsg)}</div>`:""}
   ${ST.areas.length?"":'<div class="note">Loading locations… <button class="sm" data-a="reloadareas">Try again</button></div>'}
   ${sel("sacct","I am signing up as",[["customer","A customer"],["owner","A business owner"],["driver","A driver"]])}
-  ${fld("sname","First name")}${fld("ssurname","Surname")}${sel("sarea",ST.form.sacct==="owner"?"Where is your business in Inanda?":"Your location in Inanda",areas)}
-  ${ST.form.sacct==="owner"?fld("sshop","Business name")+fld("saddr","Business address","House number and street")+sel("scat","What type of business is it?",[["food","Food"],["construction","Construction"],["beauty","Beauty"]])+'<div class="note">We check every business before it goes live. You will see your shop screen after you are approved.</div>':""}
+  ${fld("sname","First name")}${fld("ssurname","Surname")}${sel("sarea",ST.form.sacct==="owner"?"Where is your business in Inanda?":"Your location in Inanda",areas)}${ST.form.sarea==="__other"?fld("sareao","Type your place name","e.g. Matikwe")+"<small>Use letters and numbers only. We add new places to the list when we approve people.</small>":""}
+  ${ST.form.sacct==="owner"?fld("sshop","Business name")+fld("saddr","Business address","House number and street")+sel("scat","What type of business is it?",[["food","Food"],["construction","Construction"],["beauty","Beauty"]])+(ST.form.scat==="construction"?constrFields():"")+'<div class="note">We check every business before it goes live. You will see your shop screen after you are approved.</div>':""}
   ${ST.form.sacct==="driver"?drvFields():""}
   ${fld("sphone","Cell number","e.g. 081 234 5678","tel")}
   <details class="privnote" open><summary>Privacy note: how we use your cell number</summary>
@@ -1040,7 +1056,7 @@ const H={
   docancel:(el,id)=>go(async()=>{await rpc("set_order_status",{p_order:id,p_status:"cancelled",p_reason:document.getElementById("why").value});cancelling=null;await loadOwner();}),
   pay:()=>{ownView="pay";}, stmt:()=>{ownView="stmt";}, back:()=>{ownView="due";},
   paid:()=>go(async()=>{await rpc("submit_payment",{});ownView="due";await reload();ST.note="Payment submitted. We will confirm it when we see it in our account.";}),
-  cview:el=>go(async()=>{cview=el.dataset.v;ST.shop=null;ST.req=false;ST.rd=null;ST.thread=null;ST.msgs=[];if(cview==="msgs")await loadChats();if(cview==="drive")await loadTrips();if(cview==="home")await loadFeed();if(cview==="apply")await loadMe();}),
+  cview:el=>go(async()=>{cview=el.dataset.v;ST.shop=null;ST.biz=null;ST.req=false;ST.rd=null;ST.thread=null;ST.msgs=[];if(cview==="msgs")await loadChats();if(cview==="drive")await loadTrips();if(cview==="home")await loadFeed();if(cview==="apply")await loadMe();if(cview==="build"&&window.loadBuild)await window.loadBuild();}),
   newreq:()=>{ST.req=true;}, noreq:()=>{ST.req=false;},
   newride:()=>{ST.rd={pickup:null,drop:null,res:{},note:{},quote:null};ST.req=false;}, rdback:()=>{ST.rd=null;},
   rdclear:el=>{ST.rd[el.dataset.v]=null;ST.rd.quote=null;},
@@ -1153,7 +1169,7 @@ document.body.addEventListener("change",e=>{
   else if(a==="addr"){ ST.address=t.value; }
   else if(a==="chk"){ ST.form[t.dataset.k]=t.checked; }
   else if(a==="custappr"){ const on=t.checked; go(async()=>{ await rpc("set_customer_approval",{p_on:on}); ST.custAppr=on; ST.note=on?"New customers now need your approval.":"New customers are approved automatically."; }); }
-  else if(a==="form"){ ST.form[t.dataset.k]=t.value; if(["rfrom","rto","rf","rt","sacct","ptype"].includes(t.dataset.k)){ if(t.dataset.k==="sacct") snapForm(); render(); } }
+  else if(a==="form"){ ST.form[t.dataset.k]=t.value; if(["rfrom","rto","rf","rt","sacct","ptype","sarea","scat","strade","mtrade"].includes(t.dataset.k)){ if(["sacct","sarea","scat","strade","mtrade"].includes(t.dataset.k)) snapForm(); render(); } }
   else if(a==="price"){ const v=Math.round(parseFloat(t.value)*100); if(v>0) go(async()=>{await sb("/rest/v1/menu_items?id=eq."+t.dataset.id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({shop_price_cents:v})});await loadOwner();}); }
 });
 function playCard(c){
@@ -1247,7 +1263,7 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-12c";
+const LEGAL_VERSION="policy-2026-10-12d";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p class="sub" style="margin:0 0 12px">Last updated: 12 October 2026.</p>
 <h3>Who we are</h3>
@@ -1257,10 +1273,10 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h2 style="margin:18px 0 6px">Part 1: Privacy policy</h2>
 <h3>What we collect</h3>
 <ul>
-<li>Everyone: first name, surname, email address, cell number, your area in Inanda, your password (kept scrambled, so we cannot read it) and when you agreed to this policy.</li>
+<li>Everyone: first name, surname, email address, cell number, your area in Inanda (if your place is not on our list, you can type its name), your password (kept scrambled, so we cannot read it) and when you agreed to this policy.</li>
 <li>Customers: your orders, delivery addresses and transport requests (pick-up address, what is being moved and when).</li>
 <li>Car rides: the pick-up and drop-off places you choose (including a GPS point if you use your location), the distance and price of the ride, and any note you write for the driver. A customer’s phone location is used only when they tap “Use my location”. A driver’s location is sent to our server only while the driver is online, to find rides within a few kilometres, and it is kept for up to 60 minutes only to check that it is real (a position that jumps many kilometres in seconds is rejected and recorded), then deleted.</li>
-<li>Shops and other businesses: business name, address, type, menu and prices, and the orders you receive.</li>
+<li>Shops and other businesses: business name, address, type, menu and prices, and the orders you receive. Construction businesses also give their trade and the places they work in.</li>
 <li>Drivers: your name, face photo, a photo of your car, vehicle details (make, colour, type, number plate), routes and prices, ID number and a photo of your ID.</li>
 <li>The messages you send in chats and the reports you make.</li>
 <li>Voice notes you send in chats. They are kept privately and can only be played by the people in that chat and by the admin when a chat is reported or when we need to keep people safe.</li> <li>Businesses: the pictures, before-and-after photos and short videos you post (for example menus, specials and your work), and the captions and titles you write. A picture or video can show a person, so please read the picture and video rules in Part 2.</li> <li>When you upload a photo, we record that you confirmed you have permission to use it, and when you did so.</li>
@@ -1277,6 +1293,8 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <li>A driver’s name, face photo, car photo and vehicle details are shown to customers once the driver is approved.</li>
 <li>A driver’s ID number and ID photo are seen only by the admin of Inanda Business Web. The admin also sees the records of driver positions that were rejected because they jumped too far, too fast. A driver’s position is never shown to customers or to other drivers.</li>
 <li>A shop sees the orders placed with it, including the delivery address.</li>
+<li>A construction business’s name, trade, the places it works in and the photos of its work are shown to customers in the Construction list, together with a Message button.</li>
+<li>A place that someone types is kept with their account. When we approve that person, or add the place ourselves, its name joins the list of places that everyone sees. We never show who typed it.</li>
 <li>Only the two people in a chat can read it and play its voice notes. If someone reports a chat, the last 30 messages of that chat are sent to the admin so we can check what happened.</li>
 <li>Pictures, photos and videos that a business posts are shown to other people who use the app. Anyone who has the link to a picture, photo or video may also be able to open it.</li> <li>We may share information with the police or a court if the law says we must.</li>
 </ul>
@@ -1302,7 +1320,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
 <h3>Shops and other businesses</h3>
 <p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Web the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
-<h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Inanda Business Web from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Inanda Business Web permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
+<h3>Construction businesses</h3> <p>Choose the trade and the places you really work in, and keep them up to date. Do not type false or offensive text. We may change or remove it, or remove the business.</p> <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Inanda Business Web from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Inanda Business Web permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
 <p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. Car rides can only be accepted by drivers registered with a car whose position is within a few kilometres of the pick-up, and the first one to accept a ride gets it. Do not fake or change your location: a position that jumps many kilometres in seconds is rejected and recorded, and we may suspend your account. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
 <h3>Payments and fees</h3>
 <p>Customers pay shops and drivers directly, in cash. Shops and drivers pay fees to Inanda Business Web by EFT, using the bank details and reference shown in the app. Tell us when you have paid. We confirm it once the money reaches our account.</p>
@@ -1628,6 +1646,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   function galleryHtml() {
     return '<h2>Our work</h2><div class="card">' + ST.gal.map(p => '<div style="padding:6px 0 10px"><div class="gpair">' + fig(p.before_path, "Before", p.caption) + fig(p.after_path, "After", p.caption) + '</div>' + (p.caption ? '<small>' + esc(p.caption) + '</small> ' : '') + '<button class="sm" data-a="rpphoto" data-id="' + p.id + '">Report</button>' + (ST.rpid === p.id ? reportBox() : '') + '</div>').join("") + '</div>';
   }
+  window.__galleryHtml = galleryHtml;
   const _food3 = food;
   food = function () { const h = _food3(); if (!ST.shop || !(ST.gal || []).length) return h; return h.replace('<div class="card">', galleryHtml() + '<div class="card">'); };
   H.rpphoto = (el, id) => { ST.rpid = id; };
@@ -1988,7 +2007,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     own:  { tabs: [["orders", "Orders"], ["money", "Money"], ["menu", "Menu"], ["hours", "Hours"], ["posts", "Posts"], ["videos", "Videos"]], full: [], c1: ["orders", "money", "menu", "hours", "posts", "videos"], c2: [] }
   };
   const OWN_H = { "Incoming orders": "orders", "Your menu prices": "menu", "Manage your menu": "menu", "Trading hours": "hours",
-    "Menu and pictures": "posts", "Recent shop posts": "posts", "Show your work": "posts", "Our work": "posts",
+    "Menu and pictures": "posts", "Recent shop posts": "posts", "Show your work": "posts", "Our work": "posts", "Your trade and places": "posts",
     "Promote your business": "videos", "Owner videos": "videos" };
   const sel = {};
   const DESK = window.matchMedia("(min-width:900px)");
@@ -2219,6 +2238,127 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   const bar = document.getElementById("bar");
   if (bar) new MutationObserver(vis).observe(bar, { childList: true, subtree: true });
   vis();
+})();
+</script>
+<script>
+// ---- Construction directory, trades and work places ----
+(function () {
+  const areaNameOf = id => { const a = (ST.areas || []).find(x => x.id === id); return a ? a.name : ""; };
+  const placesOf = b => [...new Set([areaNameOf(b.area_id), ...(b.shop_places || []).map(p => p.place)].filter(Boolean))];
+
+  // ---- customer: the directory ----
+  async function loadBuild() {
+    ST.biz = null; ST.bizErr = "";
+    try { ST.bizList = await sb("/rest/v1/shops?select=id,name,owner_id,trade,area_id,shop_places(place)&category=eq.construction&status=eq.open&order=name&limit=300"); }
+    catch (e) { ST.bizList = []; ST.bizErr = "The construction list could not be loaded. Tap Refresh and try again."; }
+    if (!(ST.areas || []).length) { try { await loadAreas(); } catch (e) {} }
+  }
+  window.loadBuild = loadBuild;
+
+  function bizRows() {
+    const q = String(ST.bq || "").trim().toLowerCase();
+    const list = (ST.bizList || []).filter(b => {
+      if (!q) return true;
+      const hay = [b.name, b.trade || "construction", ...placesOf(b)].join(" ").toLowerCase();
+      return q.split(/\s+/).every(w => hay.includes(w));
+    }).slice(0, 60);
+    if (!list.length) return '<div class="card"><small>' + (q ? 'No construction businesses match "' + esc(q) + '".' : "No construction businesses are open yet.") + "</small></div>";
+    return list.map(b => {
+      const pl = placesOf(b);
+      return '<div class="card"><div class="row"><b>' + esc(b.name) + '</b><span class="tag">' + esc(b.trade || "Construction") + "</span></div>" +
+        (pl.length ? "<small>Works in: " + esc(pl.slice(0, 5).join(", ")) + (pl.length > 5 ? " and more" : "") + "</small>" : "") +
+        '<button class="btn" data-a="bizopen" data-id="' + b.id + '">View business</button></div>';
+    }).join("");
+  }
+  function bizPage() {
+    const b = ST.biz, pl = placesOf(b);
+    return '<button class="sm" data-a="bizback">← All construction</button><h1>' + esc(b.name) + '</h1><div class="row"><span class="tag">' + esc(b.trade || "Construction") + "</span></div>" + msgs() +
+      '<div class="card"><b>Places they work in</b><p style="margin:6px 0 10px">' + (pl.length ? esc(pl.join(", ")) : "Not listed yet.") + '</p><button class="btn" data-a="chatwith" data-v="' + esc(b.owner_id) + '">Message</button><small>You talk in the app. Cell numbers are never shared.</small></div>' +
+      (((ST.gal || []).length && window.__galleryHtml) ? window.__galleryHtml() : '<div class="card"><small>No photos of their work yet.</small></div>');
+  }
+  window.buildScreen = function () {
+    if (ST.biz) return bizPage();
+    return '<h1>Construction</h1><p class="sub">Find a builder, plumber, electrician and more. Search by trade, name or place.</p>' + msgs() +
+      (ST.bizErr ? '<div class="banner bad">' + esc(ST.bizErr) + "</div>" : "") +
+      '<label for="bq">Search</label><input id="bq" type="text" enterkeyhint="search" style="width:100%" value="' + esc(ST.bq || "") + '" placeholder="e.g. plumber, tiles, Ohlange" autocomplete="off">' +
+      '<div id="bizlist" style="margin-top:10px">' + bizRows() + "</div>";
+  };
+  document.addEventListener("input", e => {
+    if (e.target && e.target.id === "bq") { ST.bq = e.target.value; const l = document.getElementById("bizlist"); if (l) l.innerHTML = bizRows(); }
+  });
+  H.bizopen = (el, id) => go(async () => {
+    const b = (ST.bizList || []).find(x => x.id === id);
+    if (!b) throw new Error("That business is no longer listed. Tap Construction again.");
+    ST.biz = b; ST.rpid = null;
+    try { ST.gal = await sb("/rest/v1/shop_photos?select=id,caption,before_path,after_path&shop_id=eq." + id + "&order=id.desc&limit=12"); } catch (e) { ST.gal = []; }
+  });
+  H.bizback = () => { ST.biz = null; ST.rpid = null; };
+
+  // ---- owner: change your trade and places ----
+  async function loadMyWork() {
+    ST.myWork = null;
+    if (!ST.shop || ST.shopCat !== "construction") return;
+    try {
+      const r = await sb("/rest/v1/shops?select=trade,shop_places(place)&id=eq." + ST.shop.id), s = r[0] || {};
+      ST.myWork = { trade: s.trade || "", places: (s.shop_places || []).map(p => p.place) };
+    } catch (e) { ST.myWork = null; }
+  }
+  function prefillWork() {
+    const w = ST.myWork; if (!w) return;
+    const f = ST.form, t = w.trade;
+    f.mtrade = !t ? "" : (TRADES.includes(t) ? t : "__other"); f.mtradeo = TRADES.includes(t) ? "" : t;
+    const low = w.places.map(x => x.toLowerCase());
+    (ST.areas || []).forEach(a => { f["mwp_" + a.id] = low.includes(a.name.toLowerCase()); });
+    f.mwpx = w.places.filter(p => !(ST.areas || []).some(a => same(a.name, p))).join(", ");
+  }
+  const _lo4 = loadOwner;
+  loadOwner = async function () {
+    await _lo4(); await loadMyWork();
+    if (ST.myWork && !ST.myWorkInit) { prefillWork(); ST.myWorkInit = true; }
+  };
+  function ownerWork() {
+    const f = ST.form;
+    return '<h2>Your trade and places</h2><div class="card"><small>Customers see your trade and places on your business page, and can search for them.</small>' +
+      sel("mtrade", "Your trade", [["", "Choose your trade"], ...TRADES.map(t => [t, t]), ["__other", "Other (type it)"]]) +
+      (f.mtrade === "__other" ? fld("mtradeo", "Type your trade", "e.g. Glazier") : "") +
+      '<button class="btn" data-a="savetrade">Save trade</button>' +
+      '<b style="display:block;margin-top:16px">Places you work in</b><small>Tick every place you work in.</small>' +
+      (ST.areas || []).map(a => '<label class="chk"><input type="checkbox" data-a="chk" data-k="mwp_' + a.id + '" ' + (f["mwp_" + a.id] ? "checked" : "") + "><span>" + esc(a.name) + "</span></label>").join("") +
+      fld("mwpx", "Other places you work in", "Separate with commas") +
+      '<button class="btn" data-a="saveplaces">Save places</button></div>';
+  }
+  const _own5 = owner;
+  owner = function () { const b = _own5(); return (ownView === "due" && ST.shop && ST.shopCat === "construction" && ST.myWork) ? b + ownerWork() : b; };
+  H.savetrade = () => go(async () => {
+    snapForm(); const f = ST.form, t = f.mtrade === "__other" ? cleanTxt(f.mtradeo, 30) : f.mtrade;
+    if (!t) throw new Error("Choose your trade, or type it using letters only (2 to 30 characters, no links).");
+    await rpc("set_my_trade", { p_trade: t }); await loadMyWork(); prefillWork(); ST.note = "Your trade was saved.";
+  });
+  H.saveplaces = () => go(async () => {
+    snapForm(); const f = ST.form;
+    const names = (ST.areas || []).filter(a => f["mwp_" + a.id]).map(a => a.name);
+    const raw = String(f.mwpx || "").split(",").map(x => x.trim()).filter(Boolean), extra = raw.map(x => cleanTxt(x, 40)).filter(Boolean);
+    if (extra.length < raw.length) throw new Error("One of the places you typed is not valid. Use letters and numbers only (2 to 40 characters, no links).");
+    const all = [...names, ...extra];
+    if (!all.length) throw new Error("Tick or type at least one place.");
+    if (all.length > 15) throw new Error("You can list up to 15 places.");
+    await rpc("set_my_work_places", { p_places: all }); await loadMyWork(); prefillWork(); ST.note = "Your places were saved.";
+  });
+
+  // ---- admin: places people typed that are not on the list yet ----
+  const _la2 = loadAdmin;
+  loadAdmin = async function () {
+    await _la2();
+    try { ST.newPlaces = await rpc("admin_new_places", {}); } catch (e) { ST.newPlaces = []; }
+  };
+  const _ao = adminOverview;
+  adminOverview = function () {
+    const np = (ST.newPlaces || []).map(p => '<div class="row"><span><b>' + esc(p.place) + "</b> <small>(" + p.people + (p.people === 1 ? " person" : " people") + ')</small></span><button class="sm" data-a="addarea" data-v="' + esc(p.place) + '">Add to list</button></div>').join("");
+    return (np ? '<h2>New places people typed</h2><div class="card"><small>These are not on your list yet. Tap Add to list to let everyone choose them.</small>' + np + "</div>" : "") + _ao();
+  };
+  H.addarea = el => go(async () => {
+    await rpc("admin_add_area", { p_name: el.dataset.v }); await loadAreas(); await loadAdmin(); ST.note = "Added to the list.";
+  });
 })();
 </script>
 </body>
