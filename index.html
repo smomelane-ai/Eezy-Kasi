@@ -530,7 +530,7 @@ function rideForm(){
   const d=ST.rd, q=d.quote;
   return `<h1>Request a car ride</h1><p class="sub">Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.</p>${msgs()}
   <div class="card">${pointBox("pickup","Pick-up")}${pointBox("drop","Drop-off")}</div>
-  ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div><div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}You pay the driver in cash when you arrive.</div></div>`:""}
+  ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div>${q.surcharge_cents>0?`<div class="row"><span>Includes weekend rate (Fri 15:30 to Sun 17:00)</span><b>${R(q.surcharge_cents)}</b></div>`:""}<div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}You pay the driver in cash when you arrive.</div></div>`:""}
   <div class="card"><div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
   <button class="btn" data-a="rdsend" ${q?"":"disabled"}>Request this ride</button><button class="btn ghost" data-a="rdback">Back</button></div>`;
 }
@@ -1056,6 +1056,8 @@ const H={
     if(!res.length) throw new Error("No place found. Try the suburb, a road, or a nearby school or shop."); }),
   rdpick:(el,i)=>go(async()=>{const k=el.dataset.v, x=(ST.rd.res[k]||[])[i]; if(!x) return; ST.rd[k]=Object.assign({},x,{approx:!!ST.rd.note[k]}); ST.rd.res[k]=[]; ST.rd.note[k]=""; await rdQuote();}),
   rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
+    const q2=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2)});
+    if(q2.price_cents!==d.quote.price_cents){ d.quote=q2; throw new Error("The price has changed to "+R(q2.price_cents)+" because the weekend rate has just "+(q2.surcharge_cents>0?"started":"ended")+". Please check it and tap Request again."); }
     await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||""});
     ST.rd=null; await loadTrips(); ST.note="Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts."; }),
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
@@ -1245,7 +1247,7 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-11e";
+const LEGAL_VERSION="policy-2026-10-12a";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p class="sub" style="margin:0 0 12px">Last updated: 11 October 2026.</p>
 <h3>Who we are</h3>
@@ -1297,7 +1299,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h3>Using the app</h3>
 <p>Inanda Business Web connects customers with local businesses and drivers. We are the platform. Shops sell their own goods, and drivers work for themselves. They do not work for us. Please give true details and keep your password private. You are responsible for what happens on your account.</p>
 <h3>Customers</h3>
-<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
+<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
 <h3>Shops and other businesses</h3>
 <p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Web the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
 <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Inanda Business Web from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Inanda Business Web permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
