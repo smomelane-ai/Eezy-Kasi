@@ -156,6 +156,46 @@ main{padding-bottom:84px}
   background: none; border: 0; padding: 8px; cursor: pointer;
   font-size: 18px; line-height: 1;
 }</style>
+<style>
+.mtabs{display:flex;gap:4px;overflow-x:auto;padding:0 0 10px;scrollbar-width:none;border-bottom:1px solid var(--line);margin-bottom:12px}
+.mtabs::-webkit-scrollbar{display:none}
+.mtabs button{flex:0 0 auto;font:inherit;font-size:14px;font-weight:700;border:0;border-bottom:3px solid transparent;background:none;color:var(--muted);padding:8px 12px;cursor:pointer}
+.mtabs button[aria-checked=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:4px 0 12px}
+.mcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px;text-align:center;display:flex;flex-direction:column;gap:4px}
+.mimg{display:block;width:100%;aspect-ratio:1/1;border:0;padding:0;background:var(--bg);border-radius:12px;overflow:hidden;cursor:pointer;font-size:40px;line-height:1;color:var(--ink)}
+.mimg img{display:block;width:100%;height:100%;object-fit:cover}
+.mph{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.mname{font-weight:700;font-size:14px;line-height:1.25;cursor:pointer;word-break:break-word}
+.mprice{font-weight:800;font-size:15px}
+.mshort{font-size:12px;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mstep{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px}
+.mstep span{min-width:18px;font-weight:700}
+.mstep button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:18px;cursor:pointer}
+.mstep button.p{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.mdet{padding-bottom:84px}
+.mtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.mhero{border-radius:16px;overflow:hidden;background:var(--bg);aspect-ratio:4/3;font-size:64px}
+.mhero img{display:block;width:100%;height:100%;object-fit:cover}
+.mdet p.mtext{white-space:pre-line;line-height:1.45;margin:4px 0 14px}
+.msides{display:flex;gap:10px;overflow-x:auto;padding:2px 0 8px}
+.mside{flex:0 0 132px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.mside .mimg{border-radius:10px;font-size:28px}
+.mside .row2{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.mside button.rb{width:30px;height:30px;border-radius:50%;border:1px solid var(--accent);background:var(--surface);color:var(--ink);font:inherit;font-size:18px;cursor:pointer}
+.mside button.rb.on{background:var(--accent);color:var(--on-accent)}
+.mbar{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:10px 12px;margin-top:14px;box-shadow:0 -4px 14px rgba(0,0,0,.08)}
+.mbar .btn{width:auto;margin:0;padding:12px 18px}
+.mitem{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.mitem:first-of-type{border-top:0}
+.mthumb{flex:0 0 72px;height:72px;border-radius:12px;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:30px}
+.mthumb img{width:100%;height:100%;object-fit:cover}
+.mbody{flex:1;min-width:0}
+.mbody textarea{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:7px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);resize:vertical}
+.mbody select{font:inherit;font-size:14px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:auto}
+.filebtn{position:relative;overflow:hidden;cursor:pointer}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+</style>
 </head>
 <body>
 <main>
@@ -205,7 +245,7 @@ async function loadCust(){
 }
 async function loadMenu(shop){
   ST.shop=shop; ST.cart={};
-  ST.menu=await sb(`/rest/v1/menu_items?select=id,name,app_price_cents,shop_price_cents&shop_id=eq.${shop.id}&is_available=eq.true&order=id`);
+  ST.menu=await sb(`/rest/v1/menu_items?select=id,name,app_price_cents,shop_price_cents,description,category,image_url&shop_id=eq.${shop.id}&is_available=eq.true&order=id`);
   ST.posts=[]; try{ ST.posts=await sb(`/rest/v1/shop_posts?select=id,caption,image_url,before_url&shop_id=eq.${shop.id}&order=id.desc&limit=12`); }catch(e){}
 }
 async function loadOwner(){
@@ -214,7 +254,7 @@ async function loadOwner(){
   const id=ST.shop.id, base=`/rest/v1/orders?shop_id=eq.${id}`;
   const r=await Promise.all([
     sb(base+"&select=id,status,cash_cents,shop_cents,delivery_address,customer_id,order_items(name,quantity)&status=in.(placed,accepted)&order=id"),
-    sb(`/rest/v1/menu_items?select=id,name,shop_price_cents,app_price_cents&shop_id=eq.${id}&order=id`),
+    sb(`/rest/v1/menu_items?select=id,name,shop_price_cents,app_price_cents,description,category,image_url&shop_id=eq.${id}&order=id`),
     sb(`/rest/v1/shop_amount_due?select=*&shop_id=eq.${id}`),
     sb(base+"&select=id,cash_cents,fee_cents,credit_cents,net_due_cents&status=eq.delivered&payment_id=is.null&order=id")]);
   ST.orders=r[0]; ST.menu=r[1]; ST.due=r[2][0]||{}; ST.stmt=r[3];
@@ -358,7 +398,8 @@ function food(){
   }
   const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&!!ST.pickup, pr=i=>pick?i.shop_price_cents:i.app_price_cents;
   const total=ST.menu.reduce((a,i)=>a+(ST.cart[i.id]||0)*pr(i),0);
-  const items=ST.menu.map(i=>{const q=ST.cart[i.id]||0;return `<div class="row"><div><b>${esc(i.name)}</b><br><small>${R(pr(i))}</small></div><div class="qty"><button data-a="dec" data-id="${i.id}" aria-label="Remove one ${esc(i.name)}">−</button><span>${q}</span><button data-a="inc" data-id="${i.id}" aria-label="Add one ${esc(i.name)}">+</button></div></div>`}).join("");
+  const cur=ST.item?ST.menu.find(x=>x.id===ST.item):null; if(cur) return itemDetail(cur,pr,total); if(ST.item) ST.item=null;
+  const items=menuTabs()+menuGrid(pr);
   const gal=(ST.posts&&ST.posts.length)?`<h2>${cview==="beauty"?"Recent work":"Menu and pictures"}</h2>${ST.posts.map(x=>postCard(x)).join("")}`:"", top=cview==="beauty"?gal:"", bottom=cview==="beauty"?"":gal;
   return `<h1>${esc(ST.shop.name)}</h1><p class="sub">${pick?"Pick up at the shop. You pay cash when you collect.":"Delivered in "+esc(loc)+". You pay cash when it arrives."}</p>${msgs()}${top}
   <div class="card">${canPick?`<div class="seg" role="tablist"><button role="tab" aria-checked="${!pick}" data-a="pmode" data-v="deliver">Delivery</button><button role="tab" aria-checked="${pick}" data-a="pmode" data-v="pickup">Pick up</button></div>`:""}${items||"<small>No items on the menu yet.</small>"}
@@ -667,7 +708,7 @@ function adminOverview(){
     <label for="n_file">Or upload a picture</label><input id="n_file" type="file" accept="image/*"><button class="btn" data-a="postnews">Post news</button>
     ${ST.news.map(n=>`<div class="row"><span>${esc(n.title)}</span><button class="sm" data-a="delnews" data-id="${n.id}">Delete</button></div>`).join("")}</div>
     <div class="card"><b>Funny video</b>${fld("vtitle","Title")}${fld("vurl","Video link (direct .mp4 link)","https://....mp4")}
-    ${ST.vids.some(v=>!v.poster_url)?`<button class="btn ghost" data-a="thumbs">Create thumbnails for ${ST.vids.filter(v=>!v.poster_url).length} video${ST.vids.filter(v=>!v.poster_url).length===1?"":"s"}</button>`:""}<label for="v_file">Or upload a short video</label><small>MP4 or WebM, under 25 MB. Clips under 30 seconds work best.</small><input id="v_file" type="file" accept="video/mp4,video/webm"><button class="btn" data-a="postvideo">Add video</button>
+    ${ST.vids.some(v=>!v.poster_url)?`<button class="btn ghost" data-a="thumbs">Create thumbnails for ${ST.vids.filter(v=>!v.poster_url).length} video${ST.vids.filter(v=>!v.poster_url).length===1?"":"s"}</button>`:""}<label for="v_file">Or upload a short video</label><small>MP4 or WebM, under 40 MB. Clips under 30 seconds work best.</small><input id="v_file" type="file" accept="video/mp4,video/webm"><button class="btn" data-a="postvideo">Add video</button>
     ${ST.vids.map(v=>`<div class="row"><span>${esc(v.title)}</span><button class="sm" data-a="delvid" data-id="${v.id}">Delete</button></div>`).join("")}</div>`;
   return `<h1>Admin</h1><p class="sub">Businesses, drivers, payments and shops.</p>${msgs()}
   ${owners?`<h2>Businesses waiting for approval</h2>${owners}`:""}${pend?`<h2>Drivers waiting for approval</h2>${pend}`:""}${pays?`<h2>Payments to confirm</h2>${pays}`:""}${trips?`<h2>Trips not confirmed yet</h2>${trips}`:""}
@@ -1128,7 +1169,7 @@ const H={
     let url=(f.vurl||"").trim(), poster=null; const file=document.getElementById("v_file").files[0];
     if(file){
       if(!/^video\/(mp4|webm)$/.test(file.type)) throw new Error("Please use an MP4 or WebM video. Other types, such as .mov or .mkv, will not work.");
-      if(file.size>25*1024*1024) throw new Error("That video is "+Math.round(file.size/1048576)+" MB. The limit is 25 MB. Choose a shorter clip or compress it first.");
+      if(file.size>40*1024*1024) throw new Error("That video is "+Math.round(file.size/1048576)+" MB. The limit is 40 MB. Choose a shorter clip or compress it first.");
       ST.note="Uploading your video… please keep this page open."; render(); window.scrollTo({top:0});
       url=await uploadMedia(file,"videos"); ST.note="";
       try{ const obj=URL.createObjectURL(file); poster=await makeThumb(obj,true); URL.revokeObjectURL(obj); }catch(e){}
@@ -1164,7 +1205,7 @@ document.body.addEventListener("click",e=>{
 });
 document.body.addEventListener("change",e=>{
   const t=e.target, a=t.dataset.a;
-  if(t.type==="file"&&["f_photo","f_idfile","f_carphoto","f_carnew"].includes(t.id)){ if(t.files&&t.files[0]) KEEPF[t.id]=t.files[0]; else delete KEEPF[t.id]; }
+  if(t.type==="file"&&["f_photo","f_idfile","f_carphoto","f_carnew","m_file"].includes(t.id)){ if(t.files&&t.files[0]) KEEPF[t.id]=t.files[0]; else delete KEEPF[t.id]; }
   if(a==="bank"){ if(BANK){BANK[t.dataset.k]=t.value; saveBank(t.dataset.k,t.value);} }
   else if(a==="addr"){ ST.address=t.value; }
   else if(a==="chk"){ ST.form[t.dataset.k]=t.checked; }
@@ -1422,10 +1463,18 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   function ownerExtra() {
     const rows = [1,2,3,4,5,6,7].map(d => { const v = hv(d);
       return `<div class="hrow"><span class="dn">${DAYS[d]}</span><label><input type="checkbox" data-hd="c" data-d="${d}" ${v.c ? "checked" : ""}> Closed</label><input type="time" data-hd="o" data-d="${d}" value="${esc(v.o)}" aria-label="${DAYS[d]} opens"> <span>to</span> <input type="time" data-hd="x" data-d="${d}" value="${esc(v.x)}" aria-label="${DAYS[d]} closes"></div>`; }).join("");
-    const items = ST.menu.map(i => `<div class="mrow"><input type="text" maxlength="60" value="${esc(i.name)}" data-mi="${i.id}" data-mf="name" aria-label="Item name"><label><input type="checkbox" data-mi="${i.id}" data-mf="avail" ${ST.avail && ST.avail[i.id] === false ? "" : "checked"}> On sale</label></div>`).join("");
+    const isFood = (ST.shop.category || "food") === "food";
+    const items = ST.menu.map(i => `<div class="mitem"><div class="mthumb">${i.image_url ? `<img src="${esc(safeUrl(i.image_url))}" alt="" loading="lazy">` : "🍽️"}</div><div class="mbody">
+      <div class="mrow"><input type="text" maxlength="60" value="${esc(i.name)}" data-mi="${i.id}" data-mf="name" aria-label="Item name"><label><input type="checkbox" data-mi="${i.id}" data-mf="avail" ${ST.avail && ST.avail[i.id] === false ? "" : "checked"}> On sale</label></div>
+      <textarea rows="2" maxlength="200" data-mi="${i.id}" data-mf="desc" placeholder="Describe it so customers want it" aria-label="Description">${esc(i.description || "")}</textarea>
+      <div class="mrow">${isFood ? `<select data-mi="${i.id}" data-mf="cat" aria-label="Category">${MCATS.map(c => `<option ${(i.category || "Meals") === c ? "selected" : ""}>${c}</option>`).join("")}</select>` : ""}<label class="filebtn sm">${i.image_url ? "Change photo" : "Add photo"}<input type="file" accept="image/*" data-mi="${i.id}" data-mf="photo"></label></div></div></div>`).join("");
     return `<h2>Manage your menu</h2><div class="card">${items || "<small>No items yet.</small>"}
       <div class="note">Untick "On sale" to hide an item from customers, for example when you run out. The app price is worked out for you.</div>
       <h2 style="margin-top:14px">Add an item</h2>${fld("mname", "Item name", "e.g. Chips")}${fld("mprice", "Shop price in rand", "e.g. 25", "number")}
+      <label for="f_mdesc">Short description (optional)</label><textarea id="f_mdesc" rows="3" maxlength="200" style="width:100%" data-a="form" data-k="mdesc" placeholder="e.g. Rich tomato rice with grilled chicken">${esc(ST.form.mdesc || "")}</textarea>
+      ${isFood ? sel("mcat", "Category", MCATS.map(c => [c, c])) : ""}
+      <label for="m_file">Photo of the item (optional)</label><input id="m_file" type="file" accept="image/*">
+      <div class="note">Use a clear photo in good light. Only use photos you took yourself or are allowed to use. Customers see the photo, name, price and description on a card.</div>
       <button class="btn" data-a="additem">Add item</button></div>
       <h2>Trading hours</h2><div class="card">${rows}
       <div class="note">Customers can only order while you are open. Tick Closed for days you do not trade. If you have never saved hours, your shop is always open. Times are South African time.</div>
@@ -1439,8 +1488,12 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     const f = ST.form, name = (f.mname || "").trim(), cents = Math.round(parseFloat(f.mprice) * 100);
     if (!name) throw new Error("Type the item name.");
     if (!(cents > 0) || cents > 2000000) throw new Error("Type a shop price in rand, for example 25.");
-    await sb("/rest/v1/menu_items", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ shop_id: ST.shop.id, name: name.slice(0,60), shop_price_cents: cents }) });
-    f.mname = ""; f.mprice = ""; await loadOwner(); ST.note = "Item added. Customers can order it now.";
+    const isFood = (ST.shop.category || "food") === "food", fileEl = document.getElementById("m_file"), file = (fileEl && fileEl.files && fileEl.files[0]) || null;
+    let img = null;
+    if (file) { ST.note = "Uploading the photo…"; render(); img = await uploadPost(ST.shop.id, file); }
+    const desc = (f.mdesc || "").trim().slice(0, 200), cat = isFood && MCATS.includes(f.mcat) ? f.mcat : (isFood ? "Meals" : null);
+    await sb("/rest/v1/menu_items", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ shop_id: ST.shop.id, name: name.slice(0,60), shop_price_cents: cents, description: desc || null, category: cat, image_url: img }) });
+    f.mname = ""; f.mprice = ""; f.mdesc = ""; delete KEEPF["m_file"]; await loadOwner(); ST.note = "Item added. Customers can order it now.";
   });
   H.copymon = () => { const m = hv(1); ST.hd = ST.hd || {}; for (let d = 1; d <= 7; d++) ST.hd[d] = { c: m.c, o: m.o, x: m.x }; };
   H.savehours = () => go(async () => {
@@ -1465,6 +1518,15 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
       const n = t.value.trim().slice(0,60);
       if (!n) { go(async () => { throw new Error("The item name cannot be empty."); }); return; }
       go(async () => { await sb("/rest/v1/menu_items?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ name: n }) }); await loadOwner(); ST.note = "Name saved."; });
+    } else if (t.dataset.mf === "desc") {
+      const d = t.value.trim().slice(0,200);
+      go(async () => { await sb("/rest/v1/menu_items?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ description: d || null }) }); await loadOwner(); ST.note = "Description saved."; });
+    } else if (t.dataset.mf === "cat") {
+      const c = t.value; if (!MCATS.includes(c)) return;
+      go(async () => { await sb("/rest/v1/menu_items?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ category: c }) }); await loadOwner(); ST.note = "Category saved."; });
+    } else if (t.dataset.mf === "photo") {
+      const file = t.files && t.files[0]; if (!file) return;
+      go(async () => { const url = await uploadPost(ST.shop.id, file); await sb("/rest/v1/menu_items?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ image_url: url }) }); await loadOwner(); ST.note = "Photo saved."; });
     } else if (t.dataset.mf === "avail") {
       const on = t.checked;
       go(async () => { await sb("/rest/v1/menu_items?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ is_available: on }) }); await loadOwner(); ST.note = on ? "Item is on sale." : "Item is hidden from customers."; });
@@ -1686,7 +1748,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
 </script><script>
 // ---- Owner videos: owner uploads, admin approves, a scheduled job publishes batches ----
 (function () {
-  const MAXMB = 20, MAXSEC = 61;
+  const MAXMB = 40, MAXSEC = 61;
   const stText = { pending: "Waiting for approval", approved: "Approved, waiting to be published", published: "Live on the home screen", rejected: "Not approved" };
   const videoLength = file => new Promise(res => {
     const v = document.createElement("video"), u = URL.createObjectURL(file); v.preload = "metadata";
@@ -2361,6 +2423,43 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     await rpc("admin_add_area", { p_name: el.dataset.v }); await loadAreas(); await loadAdmin(); ST.note = "Added to the list.";
   });
 })();
+</script>
+<script>
+// ---- Photo menu: cards in a grid, category tabs, and a detail page for each item ----
+const MCATS=["Meals","Combos","Sides","Snacks","Drinks","Desserts","Breakfast"];
+const mcatOf=i=>i.category||"Meals";
+function mImg(i,cls){ const u=safeUrl(i.image_url); return `<button class="mimg" data-a="mopen" data-id="${i.id}" aria-label="Open ${esc(i.name)}">${u?`<img src="${esc(u)}" alt="${esc(i.name)}" loading="lazy">`:'<span class="mph">🍽️</span>'}</button>`; }
+function menuCats(){ const present=[...new Set(ST.menu.map(mcatOf))]; return present.sort((a,b)=>{ const x=MCATS.indexOf(a), y=MCATS.indexOf(b); return (x<0?99:x)-(y<0?99:y)||a.localeCompare(b); }); }
+function menuTabs(){
+  const cats=menuCats(); if(cats.length<2) return "";
+  const cur=cats.includes(ST.mcat)?ST.mcat:"All";
+  return `<div class="mtabs" role="tablist">${["All",...cats].map(c=>`<button role="tab" aria-checked="${cur===c}" data-a="mcat" data-v="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
+}
+function menuGrid(pr){
+  if(!ST.menu.length) return "";
+  const cats=menuCats(), cur=cats.includes(ST.mcat)?ST.mcat:"All";
+  const list=ST.menu.filter(i=>cur==="All"||mcatOf(i)===cur);
+  return `<div class="mgrid">${list.map(i=>{ const q=ST.cart[i.id]||0;
+    return `<div class="mcard">${mImg(i)}<div class="mname" data-a="mopen" data-id="${i.id}">${esc(i.name)}</div><div class="mprice">${R(pr(i))}</div>${i.description?`<div class="mshort">${esc(i.description)}</div>`:""}
+      <div class="mstep">${q?`<button data-a="dec" data-id="${i.id}" aria-label="Remove one ${esc(i.name)}">−</button><span>${q}</span>`:""}<button class="p" data-a="inc" data-id="${i.id}" aria-label="Add one ${esc(i.name)}">+</button></div></div>`; }).join("")}</div>`;
+}
+function itemDetail(i,pr,total){
+  const q=ST.cart[i.id]||0, n=Object.values(ST.cart).reduce((a,b)=>a+b,0), u=safeUrl(i.image_url);
+  const sides=ST.menu.filter(x=>mcatOf(x)==="Sides"&&x.id!==i.id);
+  const sideHtml=sides.length?`<h2>Recommended sides</h2><div class="msides">${sides.map(x=>{ const c=ST.cart[x.id]||0; return `<div class="mside">${mImg(x)}<b>${esc(x.name)}</b><div class="row2"><span>${R(pr(x))}</span>${c?`<button class="rb on" data-a="dec" data-id="${x.id}" aria-label="Remove one ${esc(x.name)}">−</button>`:`<button class="rb" data-a="inc" data-id="${x.id}" aria-label="Add one ${esc(x.name)}">+</button>`}</div>${c?`<small>${c} in your order</small>`:""}</div>`; }).join("")}</div>`:"";
+  return `<section class="mdet"><div class="mtop"><button class="sm" data-a="mclose">← Back to menu</button><span class="tag">🛒 ${n}</span></div>
+    <div class="mhero">${u?`<img src="${esc(u)}" alt="${esc(i.name)}">`:'<span class="mph">🍽️</span>'}</div>
+    <h1 style="margin-top:12px">${esc(i.name)}</h1>
+    <div class="row"><b style="font-size:20px">${R(pr(i))}</b><div class="qty"><button data-a="dec" data-id="${i.id}" aria-label="Remove one">−</button><span>${q}</span><button data-a="inc" data-id="${i.id}" aria-label="Add one">+</button></div></div>
+    <h2>Description</h2><p class="mtext">${i.description?esc(i.description):"<small>No description yet.</small>"}</p>${sideHtml}
+    <div class="mbar"><span>Total: <b>${R(total)}</b></span><button class="btn" data-a="mclose">${total?"View my order":"Back to menu"}</button></div></section>`;
+}
+Object.assign(H,{
+  mopen:(el,id)=>{ ST.item=id; window.scrollTo(0,0); },
+  mclose:()=>{ ST.item=null; window.scrollTo(0,0); },
+  mcat:el=>{ ST.mcat=el.dataset.v; }
+});
+["shop","shops"].forEach(k=>{ const f=H[k]; if(f) H[k]=function(){ ST.item=null; ST.mcat="All"; return f.apply(this,arguments); }; });
 </script>
 </body>
 </html>
