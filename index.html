@@ -641,13 +641,13 @@ function reqForm(){
 function applyScreen(){
   const m=ST.me;
   if(m) return `<h1>Driver application</h1>${msgs()}<div class="card"><div class="banner ${m.status==="approved"?"ok":"bad"}"><strong>${m.status==="approved"?"You are approved":m.status==="suspended"?"Your account is suspended":"Waiting for approval"}</strong>${m.status==="approved"?"Log out and log in again to open your driver screen.":"We are checking your details. You will be able to see your driver screen once you are approved."}</div></div>${m.car_photo_path?"":carCardHtml()}`;
-  return `<h1>Become a driver</h1><p class="sub">Customers will see your name, face photo, car photo and vehicle details. Your cell number and ID number stay hidden from customers.</p>${msgs()}<div class="card">
+  return `<h1>Become a driver</h1><p class="sub">Customers will see your name, face photo, car photo and vehicle details. Your cell number and ID number stay hidden from customers.</p>${msgs()}<div class="card">${drvHelp()}
   ${fld("name","Full name")}${fld("phone","Cellphone number","","tel")}${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}
-  ${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
+  ${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car (for car rides)"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
   <label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*">
   <label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">
   <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox" data-a="chk" data-k="consent" ${ST.form.consent?"checked":""}><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
-  <button class="btn" data-a="apply">Send application</button></div>`;
+  <button class="btn" data-a="apply">Send application</button></div>${troubleBlock()}`;
 }
 function earnCard(){
   const e=ST.earn; if(!e) return "";
@@ -822,10 +822,12 @@ function reportsScreen(){
     const log=(r.r_evidence||[]).map(x=>`<div class="bub ${x.from==="reporter"?"me":"them"}">${esc(x.text)}<span class="bt">${x.at?new Date(x.at).toLocaleString([],{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):""}</span></div>`).join("");
     return `<div class="card"><div class="row"><b>${esc(r.r_reported)}</b><span class="tag bad">${esc(REAS[r.r_reason]||r.r_reason)}</span></div><small>${esc(roleLabel(r.r_reported_role))} · reported by ${esc(r.r_reporter)} · ${ago(r.r_created)}</small>${r.r_note?`<p style="margin:8px 0 0">${esc(r.r_note)}</p>`:""}<div class="rep-log">${log||"<small>No messages saved.</small>"}</div><small>Right side: ${esc(r.r_reporter)} (who reported). Left side: ${esc(r.r_reported)}.</small><button class="btn ghost" data-a="msusp" data-v="${r.r_reported_id}">Suspend ${esc(r.r_reported)}</button><button class="btn" data-a="rclose" data-id="${r.r_id}">Close report</button></div>`;
   }).join("");
-  return `<h1>Reports</h1><p class="sub">Chats that people reported. Only the last 30 messages are saved.</p>${msgs()}${cards||'<div class="card"><small>No open reports.</small></div>'}`;
+  const probs=(ST.probs||[]).map(x=>{ const c=x.context||{}, who=x.member_name?esc(x.member_name):"Not logged in";
+    return `<div class="card"><div class="row"><b>${who}</b><small>${ago(x.created_at)}</small></div><p style="margin:6px 0">${esc(x.message)}</p><small>${x.contact?"Cell: "+esc(x.contact)+"<br>":""}${x.member_phone?"Profile cell: "+esc(x.member_phone)+"<br>":""}${c.lastError?"Last error: "+esc(c.lastError)+"<br>":""}Screen: ${esc(c.screen||"")}${c.inApp?' <span class="tag bad">Inside another app (WhatsApp or Facebook)</span>':""}${c.online===false?" · offline":""}<br>${esc(c.ua||"")}</small><button class="sm" data-a="probdone" data-id="${x.id}">Done</button></div>`; }).join("");
+  return `<h1>Reports</h1>${msgs()}${probs?`<h2>Problems people sent</h2>${probs}`:""}<h2>Reported chats</h2><p class="sub">Chats that people reported. Only the last 30 messages are saved.</p>${cards||'<div class="card"><small>No open reports.</small></div>'}`;
 }
 function admin(){
-  const np=ST.members.filter(needsOk).length, nr=ST.reports.length;
+  const np=ST.members.filter(needsOk).length, nr=ST.reports.length+(ST.probs||[]).length;
   const seg=`<div class="seg" role="tablist">${[["over","Overview"],["mem","Members"+(np?" ("+np+")":"")],["rep","Reports"+(nr?" ("+nr+")":"")]].map(([k,l])=>`<button role="tab" aria-checked="${ST.atab===k}" data-a="atab" data-v="${k}">${l}</button>`).join("")}</div>`;
   return seg+(ST.atab==="mem"?membersScreen():ST.atab==="rep"?reportsScreen():adminOverview());
 }
@@ -967,8 +969,21 @@ async function saveBank(k,v){
 async function doLogin(){
   const email=document.getElementById("uid").value.trim(), password=document.getElementById("pw").value;
   try{ tsCheck(); await afterLogin(await sb("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email,password,...tsMeta()})})); }
-  catch(e){ authMsg=e.message; }
+  catch(e){ authMsg=friendlyAuth(e.message); }
   render();
+}
+let LASTERR="";
+function troubleBlock(){
+  if(ST.troubleSent) return '<div class="banner ok" style="margin-top:12px"><strong>Thank you</strong>We got your message and will help you as soon as we can.</div>';
+  if(!ST.trouble) return '<p style="margin:12px 0"><button class="sm" type="button" data-a="trouble">Having trouble? Tell us</button></p>';
+  return `<div class="card" style="margin-top:12px"><h2>Having trouble?</h2>${ST.troubleErr?`<div class="banner bad">${esc(ST.troubleErr)}</div>`:""}<label for="f_tmsg">What went wrong?</label><textarea id="f_tmsg" rows="4" maxlength="500" style="width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)" data-a="form" data-k="tmsg" placeholder="For example: the photo button does nothing">${esc(ST.form.tmsg||"")}</textarea>${fld("tcontact","Your cell number so we can call or WhatsApp you (optional)","e.g. 081 234 5678","tel")}<div class="note">We also send the last error you saw and your phone type, so we can find the problem. We never see your password.</div><button class="btn" data-a="troublesend">Send to Inanda Business Web</button><button class="btn ghost" data-a="troublecancel">Cancel</button></div>`;
+}
+function friendlyAuth(m){
+  m=String(m||"");
+  if(/already (been )?registered|user_already_exists|already exists/i.test(m)) return "That email already has an account. Tap Back to log in and log in. If you forgot your password, tap Forgot password?";
+  if(/rate limit|too many requests|over_email_send_rate_limit/i.test(m)) return "Too many people are signing up right now. Please wait a few minutes and try again. If it keeps happening, tap Having trouble? below.";
+  if(/failed to fetch|networkerror|load failed/i.test(m)) return "No internet connection. Check your data or Wi-Fi and try again.";
+  return m;
 }
 async function doSignup(){
   snapForm();
@@ -993,6 +1008,7 @@ async function doSignup(){
     if(biz&&!(f.sshop||"").trim()) throw new Error("Please type your business name.");
     if(drv){
       if(!(f.make||"").trim()||!(f.colour||"").trim()||!(f.plate||"").trim()||!(f.idno||"").trim()) throw new Error("Please fill in your vehicle make, colour, number plate and ID number.");
+      if(!f.vtype) throw new Error("Please choose your vehicle type. Choose Car if you want car rides.");
       if(!(phf&&phf[0])||!(carf&&carf[0])||!(idf&&idf[0])) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
     }
     if(!/^(\+27|0)[0-9]{9}$/.test(phone)) throw new Error("Please type a valid cell number, for example 081 234 5678.");
@@ -1013,7 +1029,7 @@ async function doSignup(){
         }catch(e){ ST.err="Your account was created, but we could not send your vehicle details ("+e.message+"). Send them again from the form on this screen (or tap Become a driver)."; }
       }
     }else{ authMsg="Account created. Check your email to confirm it, then log in."+(biz?" Your business will be checked before it goes live.":"")+(drv?" After you log in, tap Become a driver to send your vehicle details.":""); authView="login"; }
-  }catch(e){ authMsg=e.message; }
+  }catch(e){ authMsg=friendlyAuth(e.message); }
   render();
   if(authMsg||ST.err) window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -1058,9 +1074,11 @@ function loginScreen(){
   <button class="btn" data-a="login">Log in</button>
   <button class="btn ghost" data-a="tosignup">Create account</button>
   <button class="sm" style="margin-top:12px" data-a="forgot">Forgot password?</button>
-  <div class="note">Shop owners and admin get their access from Inanda Business Web. Log in with the email you were given.</div></div>`;
+  <div class="note">Shop owners and admin get their access from Inanda Business Web. Log in with the email you were given.</div></div>${troubleBlock()}`;
 }
-const drvFields=()=>`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
+const IN_APP=(()=>{ try{ const u=navigator.userAgent||""; return /FBAN|FBAV|Instagram|TikTok|musical_ly|; wv\)/.test(u)||(/iPhone|iPad/.test(u)&&!/Safari\//.test(u)); }catch(e){ return false; } })();
+const drvHelp=()=>(IN_APP?'<div class="banner bad"><strong>Open this page in Chrome or Safari</strong>It looks like you opened this link inside another app (such as WhatsApp or Facebook). The camera and photo buttons often do not work there. Tap the menu (three dots) or the share button, then choose Open in Chrome or Open in Safari.</div>':"")+'<div class="note"><b>Before you start, have these ready:</b><br>1. A photo of your face.<br>2. A photo of your car, with the number plate showing.<br>3. A photo of your ID.<br>4. Your ID number and your car number plate.<br>5. Your cell number, for example 0781234567.<br>Take the photos with the normal camera setting (JPG).</div>';
+const drvFields=()=>drvHelp()+`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car (for car rides)"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
 const constrFields=()=>sel("strade","Your trade",[["","Choose your trade"],...TRADES.map(t=>[t,t]),["__other","Other (type it)"]])+(ST.form.strade==="__other"?fld("stradeo","Type your trade","e.g. Glazier"):"")+'<b style="display:block;margin-top:12px">Places you work in</b><small>Tick every place you work in. Customers can search for them.</small>'+ST.areas.map(a=>`<label class="chk"><input type="checkbox" data-a="chk" data-k="swp_${a.id}" ${ST.form["swp_"+a.id]?"checked":""}><span>${esc(a.name)}</span></label>`).join("")+fld("swpx","Other places you work in","Separate with commas");
 function signupScreen(){
   const areas=[["","Choose your location"],...ST.areas.map(a=>[a.name,a.name]),["__other","My place is not on the list"]];
@@ -1080,7 +1098,7 @@ function signupScreen(){
   <label class="chk"><input type="checkbox" data-a="chk" data-k="sagree" ${ST.form.sagree?"checked":""}><span>${ST.form.sacct==="driver"?"I have read the privacy policy and terms. I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.":"I have read the privacy policy and terms, and I agree."}</span></label>
   ${tsBox()}
   <button class="btn" data-a="signup">Create account</button>
-  <button class="btn ghost" data-a="tologin">Back to log in</button></div>`;
+  <button class="btn ghost" data-a="tologin">Back to log in</button></div>${troubleBlock()}`;
 }
 function forgotScreen(){
   return `<div class="card"><h2>Reset your password</h2><p class="sub">Type your email address and we will send you a link.</p>
@@ -1102,6 +1120,7 @@ function areaScreen(){
   return `<h1>Where should we deliver?</h1><p class="sub">Pick your area in Inanda.</p>${msgs()}<div class="areas">${list||"<small>Could not load the areas. Tap Refresh.</small>"}</div>`;
 }
 function render(){
+  try{ if(ST.err) LASTERR=ST.err; else if(authMsg&&!/^(Account created|Password changed|If that email)/.test(authMsg)) LASTERR=authMsg; }catch(e){}
   const cust=user&&user.tab==="cust";
   document.getElementById("bar").innerHTML = user?`<span><b style="display:inline-block;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${esc(dispName())}</b>${cust&&loc?" · "+esc(loc):""}</span><span>${cust&&loc?'<button class="sm" data-a="area">Change area</button> ':''}<button class="sm" data-a="sndtoggle" aria-label="Message sound on or off">${soundOn?"🔔":"🔕"}</button> <button class="sm" data-a="refresh">Refresh</button> <button class="sm" data-a="logout">Log out</button></span>`:"";
   document.getElementById("app").innerHTML = !user?(authView==="forgot"?forgotScreen():authView==="reset"?resetScreen():authView==="signup"?signupScreen():loginScreen()):tab==="pend"?pendingScreen():tab==="cust"?customer():msgTabs()+(xtab==="msgs"?messagesScreen():tab==="own"?owner():tab==="drv"?driver():admin());
@@ -1180,11 +1199,23 @@ const H={
     if(!document.getElementById("f_consent").checked) throw new Error("Please tick the box to agree.");
     const ph=document.getElementById("f_photo").files[0], idf=document.getElementById("f_idfile").files[0], carf=document.getElementById("f_carphoto").files[0];
     if(!ph||!carf||!idf) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
+    if(!f.vtype) throw new Error("Please choose your vehicle type. Choose Car if you want car rides.");
     ST.note="Sending your photos… please wait, this can take a minute on mobile data."; render();
     const pp=await upload("driver-photos",ph,"photo"), cp=await upload("driver-photos",carf,"car"), ip=await upload("driver-ids",idf,"id");
     await rpc("apply_as_driver",{p_name:f.name||"",p_phone:f.phone||"",p_make:f.make||"",p_colour:f.colour||"",p_plate:f.plate||"",p_type:f.vtype||"bakkie",p_id_number:f.idno||"",p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp});
     clearFiles(); await loadMe(); ST.note="Application sent. We will check your details and approve you."; }),
   offer:(el,id)=>go(async()=>{await rpc("offer_transport",{p_request:id});await loadDriver();ST.note="Sent. The customer will choose a driver.";}),
+  trouble:()=>{ ST.trouble=true; ST.troubleErr=""; ST.troubleSent=false; },
+  troublecancel:()=>{ ST.trouble=false; ST.troubleErr=""; },
+  troublesend:()=>go(async()=>{ snapForm(); const f=ST.form, msg=(f.tmsg||"").trim();
+    if(msg.length<3){ ST.troubleErr="Please tell us what went wrong."; return; }
+    const ua=navigator.userAgent||"";
+    try{
+      await rpc("report_problem",{p_message:msg,p_contact:(f.tcontact||"").trim()||null,p_context:{lastError:String(LASTERR||"").slice(0,300),screen:user?("tab:"+user.tab):("logged out:"+authView),ua:ua.slice(0,220),inApp:IN_APP,online:navigator.onLine,standalone:!!(window.matchMedia&&matchMedia("(display-mode: standalone)").matches),width:innerWidth,lang:navigator.language||""}});
+      ST.trouble=false; ST.troubleSent=true; ST.troubleErr=""; f.tmsg="";
+    }catch(e){ ST.troubleErr=friendlyAuth(e.message); }
+  }),
+  probdone:(el,id)=>go(async()=>{ await rpc("resolve_problem",{p_id:id}); ST.probs=(ST.probs||[]).filter(x=>x.id!==id); }),
   jstartpin:(el,id)=>go(async()=>{const inp=document.getElementById("f_pin"+id), pin=((inp&&inp.value)||ST.form["pin"+id]||"").replace(/\D/g,"");
     if(pin.length!==4) throw new Error("Type the customer's 4-digit PIN.");
     const r=await rpc("start_car_ride",{p_request:id,p_pin:pin});
@@ -1360,7 +1391,7 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-14";
+const LEGAL_VERSION="policy-2026-10-14b";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p class="sub" style="margin:0 0 12px">Last updated: 14 October 2026.</p>
 <h3>Who we are</h3>
@@ -1373,6 +1404,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <ul>
 <li>Everyone: first name, surname, email address, cell number, your area in Inanda (if your place is not on our list, you can type its name), your password (kept scrambled, so we cannot read it) and when you agreed to this policy.</li>
 <li>Customers: your orders, delivery addresses and transport requests (pick-up address, what is being moved and when).</li>
+<li>Problem messages: if you tap “Having trouble? Tell us”, we keep what you write, the cell number you choose to add, the last error you saw, and your phone and browser type, so that we can fix the problem and help you. Only the admin can read these, and we delete them once the problem is solved.</li>
 <li>Car rides: the pick-up and drop-off places you choose (including a GPS point if you use your location), the distance and price of the ride, any pick-up landmark or note you write for the driver (never put phone numbers or web links there: they are refused), and the 4-digit trip PIN made for each accepted ride. If you save a driver as your regular driver, we keep a short list of up to 5 drivers for you, so that you can ask them first. The PIN is shown only to the customer and the driver who accepted the ride, and is used only to start that trip. A customer’s phone location is used only when they tap “Use my location”. A driver’s location is sent to our server only while the driver is online, to find rides within a few kilometres, and it is kept for up to 60 minutes only to check that it is real (a position that jumps many kilometres in seconds is rejected and recorded), then deleted.</li>
 <li>Shops and other businesses: business name, address, type, menu and prices, and the orders you receive. Construction businesses also give their trade and the places they work in.</li>
 <li>Drivers: your name, face photo, a photo of your car, vehicle details (make, colour, type, number plate), routes and prices, ID number and a photo of your ID.</li>
@@ -2531,6 +2563,7 @@ Object.assign(H,{
   const ZU = {
     "Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.":"Udinga imoto? Khetha Cela imoto: i-app isebenzisa indawo yefoni yakho ukubala ibanga futhi ikubonise intengo ebekiwe. Udinga ukuthutha impahla? Khetha Thutha impahla, uveze lapho uvela khona nalapho uya khona, bese abashayeli abahamba lowo mzila bayamukela. Ukhokhela umshayeli ngemali eyimali. Cindezela Ngifike kahle uma usufikile.",
     "Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.":"Khetha lapho uvela khona nalapho uya khona. I-app ibala ibanga futhi ikubonise intengo eyodwa ebekiwe ngaphambi kokuba ucele umshayeli. Ukhokhela umshayeli ngemali eyimali.",
+    "Having trouble? Tell us":"Unenkinga? Sitshele","What went wrong?":"Kwenzeke ini?","Send to Inanda Business Web":"Thumela ku-Inanda Business Web","Thank you":"Siyabonga","Choose your vehicle":"Khetha imoto yakho","Vehicle type":"Uhlobo lwemoto",
     "Home":"Ikhaya","Messages":"Imiyalezo","Log in":"Ngena","Create account":"Dala i-akhawunti","Forgot password?":"Ukhohlwe iphasiwedi?",
     "Email address":"Ikheli le-imeyili","Password":"Iphasiwedi","Back":"Emuva","Back to log in":"Buyela ekungeneni","Cancel":"Khansela",
     "Refresh":"Vuselela","Log out":"Phuma","Search":"Sesha","Change":"Shintsha","Create a password":"Dala iphasiwedi",
@@ -2632,5 +2665,16 @@ Object.assign(H,{
 })();
 </script>
 
+<script>
+// ---- admin: also load the "Having trouble?" messages ----
+(function () {
+  const _la = loadAdmin;
+  loadAdmin = async function () {
+    const r = await _la.apply(this, arguments);
+    try { ST.probs = await rpc("admin_problems", {}); } catch (e) { ST.probs = []; }
+    return r;
+  };
+})();
+</script>
 </body>
 </html>
