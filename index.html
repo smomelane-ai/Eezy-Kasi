@@ -658,7 +658,7 @@ function owner(){
     <div class="row"><span>Platform fee (25%)</span><b>${R(d.fee_cents||0)}</b></div>
     <div class="row"><span>Delivery credit (5%)</span><b>−${R(d.credit_cents||0)}</b></div>
     <div class="row"><span>Amount due</span><b class="big">${R(due)}</b></div>
-    <div class="note">The 5% delivery credit (R1 on every R20 order) has been taken out, because you deliver the orders yourself.</div>
+    <div class="note">On delivery orders, the 5% delivery credit (R1 on every R20 order) has been taken out, because you deliver those orders yourself. Pick up orders have no credit: you only pass on the extra the customer paid on top of your price.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button>
     <button class="btn ghost" data-a="stmt">View monthly statement</button></div>
   <h2>Incoming orders</h2>${open||'<div class="card"><small>No open orders. New orders show up here when you tap Refresh.</small></div>'}
