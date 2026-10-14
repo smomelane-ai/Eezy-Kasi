@@ -336,6 +336,10 @@ async function loadTrips(){
   const ids=ST.trips.map(t=>t.id);
   ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_colour,plate_number,photo_path,car_photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
   await signPhotos(ST.offers.map(o=>o.drivers).filter(Boolean));
+  ST.pins={}; ST.favs=[];
+  try{ ((await rpc("my_car_pins",{}))||[]).forEach(x=>{ST.pins[x.request_id]=x.pin;}); }catch(e){}
+  try{ const f=await sb("/rest/v1/favourite_drivers?select=driver_id&order=created_at");
+    if(f.length){ const d=await sb("/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number&id=in.("+f.map(x=>x.driver_id).join(",")+")"); ST.favs=d; } }catch(e){}
 }
 async function signPhotos(list){
   const paths=[]; list.forEach(d=>{ if(d.photo_path) paths.push(d.photo_path); if(d.car_photo_path) paths.push(d.car_photo_path); });
@@ -358,6 +362,8 @@ async function loadDriver(){
     sb(`/rest/v1/driver_amount_due?select=*&driver_id=eq.${id}`)]);
   ST.me=r[0][0]||null; ST.myRoutes=r[1]; ST.openReqs=r[2].filter(x=>x.ride_type!=="car"); ST.rides=[]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
   if(ST.jobs.length){ const c=await sb(`/rest/v1/transport_contacts?select=request_id,pickup_text&request_id=in.(${ST.jobs.map(j=>j.id).join(",")})`); c.forEach(x=>{ST.contacts[x.request_id]=x;}); }
+  try{ if(ST.jobs.length){ const L=await sb("/rest/v1/transport_requests?select=id,pickup_landmark&id=in.("+ST.jobs.map(j=>j.id).join(",")+")"); L.forEach(x=>{ const j=ST.jobs.find(y=>y.id===x.id); if(j) j.pickup_landmark=x.pickup_landmark; }); } }catch(e){}
+  ST.earn=null; try{ const e=await rpc("my_earnings",{}); ST.earn={}; (e||[]).forEach(x=>{ST.earn[x.period]=x;}); }catch(e){}
   ST.rideErr="";
   if(ST.online&&ST.me&&ST.me.vehicle_type==="car"){
     try{ ST.here=await getPos(); const ok=await rpc("check_my_position",{p_lat:ST.here.lat,p_lng:ST.here.lng}); if(ok===false){ ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr="Your location jumped too far, too fast, so the app could not trust it. Go online again when you are at your real position."; } else { ST.rides=(await rpc("open_car_rides",{p_lat:ST.here.lat,p_lng:ST.here.lng}))||[]; } }catch(e){ ST.rideErr=e.message; }
@@ -570,12 +576,20 @@ function pointBox(kind,title){
       +`<button class="btn ghost" data-a="rdsearch" data-v="${kind}">Search</button>`
       +(d.note&&d.note[kind]?`<div class="note">${esc(d.note[kind])}</div>`:"")+res.map((x,i)=>`<button class="sm" style="display:block;width:100%;text-align:left;margin:6px 0" data-a="rdpick" data-v="${kind}" data-id="${i}">${esc(x.label)}</button>`).join(""));
 }
+const LANDMARKS=["Spar","Taxi rank","Church","School","Clinic","Tavern","Spaza shop","Bus stop"];
+function landmarkBlock(){
+  return `<label for="f_rdland">Pick-up landmark (optional)</label><small>Many of our streets have no names. Tell the driver what is next to you.</small><div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">${LANDMARKS.map(l=>`<button type="button" class="sm" data-a="landchip" data-v="${esc(l)}">${esc(l)}</button>`).join("")}</div><input id="f_rdland" type="text" maxlength="80" style="width:100%" value="${esc(ST.form.rdland||"")}" data-a="form" data-k="rdland" placeholder="e.g. Next to Inanda Spar, red gate">`;
+}
+function favPick(){
+  const f=ST.favs||[]; if(!f.length) return "";
+  return sel("rdpref","Ask my regular driver first (they get 60 seconds)",[["","No, any nearby driver"]].concat(f.map(d=>[d.id,d.full_name+" · "+(d.vehicle_colour||"")+" "+(d.vehicle_make||"")])));
+}
 function rideForm(){
   const d=ST.rd, q=d.quote;
   return `<h1>Request a car ride</h1><p class="sub">Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.</p>${msgs()}
   <div class="card">${pointBox("pickup","Pick-up")}${pointBox("drop","Drop-off")}</div>
   ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div>${q.surcharge_cents>0?`<div class="row"><span>Includes weekend rate (Fri 15:30 to Sun 17:00)</span><b>${R(q.surcharge_cents)}</b></div>`:""}<div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}You pay the driver in cash when you arrive.</div></div>`:""}
-  <div class="card"><div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
+  <div class="card">${landmarkBlock()}${favPick()}<div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
   <button class="btn" data-a="rdsend" ${q?"":"disabled"}>Request this ride</button><button class="btn ghost" data-a="rdback">Back</button></div>`;
 }
 function driveTab(){
@@ -587,10 +601,12 @@ function driveTab(){
     else if(t.status==="open") body=offs.length?offs.map(o=>{const ok=t.budget_cents&&o.price_cents<=t.budget_cents;
       return `<div class="note">${person(o.drivers||{})}<div class="row"><b>${R(o.price_cents)}</b>${ok?'<span class="tag ok">Within your budget</span>':""}</div><button class="sm" data-a="chatwith" data-v="${o.driver_id}">Message driver</button><button class="btn" data-a="choose" data-id="${t.id}" data-v="${o.driver_id}">Choose this driver</button></div>`}).join(""):'<div class="note">No driver has accepted yet. Tap Refresh in a little while.</div>';
     else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>Pay the driver in cash</span><b>${R(t.price_cents)}</b></div><p style="margin:6px 0"><small>The driver will text or send you a voice note in Messages.</small></p><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button></div>`;
+    if(t.status==="accepted"&&t.ride_type==="car"&&ST.pins&&ST.pins[t.id]) body+=`<div class="card" style="text-align:center;border:2px solid var(--brand,#0a7)"><small>Your trip PIN</small><div style="font-size:40px;font-weight:800;letter-spacing:10px;margin:4px 0">${esc(ST.pins[t.id])}</div><small>Check the car and the driver's photo, then give the driver this PIN when you get in. The trip cannot start without it. Never send it by message.</small></div>`;
+    if(t.status==="completed"&&t.ride_type==="car"&&chosen&&!(ST.favs||[]).some(d=>d.id===chosen.driver_id)) body+=`<button class="btn ghost" data-a="favon" data-v="${esc(chosen.driver_id)}">Save ${esc((chosen.drivers||{}).full_name||"this driver")} as my regular driver</button>`;
     const act=(t.status==="accepted"||t.status==="started")?`<button class="btn" data-a="arrived" data-id="${t.id}">I have arrived safely</button>`:"";
     const can=(t.status==="open"||t.status==="accepted")?(cancelling===t.id?`<select id="why"><option>Changed my mind</option><option>Driver not answering</option><option>Found another driver</option></select><button class="btn ghost" data-a="docanceltrip" data-id="${t.id}">Confirm cancel</button>`:`<button class="btn ghost" data-a="canceltrip" data-id="${t.id}">Cancel</button>`):"";
     return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?"Car ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
-  return `<h1>Request a driver</h1><p class="sub">Need a car? Choose <b>Request a car ride</b>: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose <b>Move goods</b>, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap <b>I have arrived safely</b> when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a car ride</button><button class="btn ghost" style="margin-top:8px" data-a="newreq">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
+  return `<h1>Request a driver</h1><p class="sub">Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a car ride</button><button class="btn ghost" style="margin-top:8px" data-a="newreq">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
 }
 function reqForm(){
   return `<h1>Request a driver</h1>${msgs()}<div class="card">
@@ -611,26 +627,32 @@ function applyScreen(){
   <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox"><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
   <button class="btn" data-a="apply">Send application</button></div>`;
 }
+function earnCard(){
+  const e=ST.earn; if(!e) return "";
+  const row=(k,l)=>{const x=e[k]||{rides:0,gross_cents:0,kept_cents:0}; return `<div class="row"><span>${l} · ${x.rides} ride${x.rides===1?"":"s"}</span><b>${R(x.kept_cents)}</b></div>`;};
+  const a=e.all||{gross_cents:0,kept_cents:0}, pct=a.gross_cents>0?Math.round(a.kept_cents/a.gross_cents*100):85;
+  return `<div class="card"><h2>What you kept</h2>${row("today","Today")}${row("week","Last 7 days")}${row("month","This month")}${row("all","All time")}<div class="note">You collect the fare in cash and keep about ${pct}% of it. The app's share is only what appears in your weekly balance below. No hidden charges.</div></div>`;
+}
 function driver(){
   if(ownView==="pay") return payScreen();
   const me=ST.me; if(!me) return applyScreen();
   const d=ST.dDue||{}, due=d.amount_due_cents||0, offered=new Set(ST.myOffers.map(o=>o.request_id));
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Inanda Business Web.</div>':"");
   const carCard=me.car_photo_path?"":carCardHtml();
-  const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div><small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
+  const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
   const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and new ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
     return `<div class="card"><div class="row"><b>${esc(r.from_place)} → ${esc(r.to_place)}</b><b>${rt?R(rt.price_cents):""}</b></div><small>${esc(r.goods_type)}: ${esc(r.description||"")}<br>When: ${esc(r.when_text||"-")}${r.budget_cents?"<br>Customer budget: "+R(r.budget_cents):""}</small>${offered.has(r.id)?'<div class="note">You accepted. Waiting for the customer to choose.</div>':`<button class="btn" data-a="offer" data-id="${r.id}">Accept at ${R(rt?rt.price_cents:0)}</button>`}</div>`}).join("");
   const jobs=ST.jobs.map(j=>{const g=tagFor(j.status), c=ST.contacts[j.id]||{};
-    const act=j.status==="accepted"?`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`:'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
-    return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}<br>When: ${esc(j.when_text||"-")}<br>The customer will text or send you a voice note. Cell numbers are not shared.</small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}</div>`}).join("");
+    const act=j.status==="accepted"?(j.ride_type==="car"?`<label for="f_pin${j.id}">Ask the customer for their 4-digit PIN</label><input id="f_pin${j.id}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="width:100%;font-size:28px;letter-spacing:10px;text-align:center" value="${esc(ST.form["pin"+j.id]||"")}" data-a="form" data-k="pin${j.id}" placeholder="0000"><button class="btn" data-a="jstartpin" data-id="${j.id}">Start trip</button>`:`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`):'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
+    return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}${j.pickup_landmark?"<br>Landmark: <b>"+esc(j.pickup_landmark)+"</b>":""}<br>When: ${esc(j.when_text||"-")}<br>The customer will text or send you a voice note. Cell numbers are not shared.</small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}</div>`}).join("");
   const routes=ST.myRoutes.map(p=>`<div class="row"><span>${esc(p.from_place)} → ${esc(p.to_place)}</span><span><b>${R(p.price_cents)}</b> <button class="sm" data-a="delroute" data-id="${p.id}">Remove</button></span></div>`).join("");
   return `<h1>${esc(me.full_name)}</h1><p class="sub">Trips are paid weekly.</p>${bn}${msgs()}
   <div class="card"><h2>Balance to pay</h2><div class="row"><span>Trips finished</span><b>${d.jobs_completed||0}</b></div>
     <div class="row"><span>Amount due</span><b class="big">${R(due)}</b></div>
     <div class="note">Pay your balance within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
-  ${carCard}${rideSec}
+  ${earnCard()}${carCard}${rideSec}
   <h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
   <h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
@@ -1115,7 +1137,8 @@ const H={
   rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
     const q2=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2)});
     if(q2.price_cents!==d.quote.price_cents){ d.quote=q2; throw new Error("The price has changed to "+R(q2.price_cents)+" because the weekend rate has just "+(q2.surcharge_cents>0?"started":"ended")+". Please check it and tap Request again."); }
-    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||""});
+    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null});
+    f.rdland=""; f.rdnote=""; f.rdpref="";
     ST.rd=null; await loadTrips(); ST.note="Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts."; }),
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
     const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
@@ -1138,6 +1161,15 @@ const H={
     await rpc("apply_as_driver",{p_name:f.name||"",p_phone:f.phone||"",p_make:f.make||"",p_colour:f.colour||"",p_plate:f.plate||"",p_type:f.vtype||"bakkie",p_id_number:f.idno||"",p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp});
     clearFiles(); await loadMe(); ST.note="Application sent. We will check your details and approve you."; }),
   offer:(el,id)=>go(async()=>{await rpc("offer_transport",{p_request:id});await loadDriver();ST.note="Sent. The customer will choose a driver.";}),
+  jstartpin:(el,id)=>go(async()=>{const inp=document.getElementById("f_pin"+id), pin=((inp&&inp.value)||ST.form["pin"+id]||"").replace(/\D/g,"");
+    if(pin.length!==4) throw new Error("Type the customer's 4-digit PIN.");
+    const r=await rpc("start_car_ride",{p_request:id,p_pin:pin});
+    if(r==="wrong") throw new Error("That PIN is not right. Ask the customer to read it from their screen.");
+    if(r==="locked") throw new Error("Too many wrong tries. Wait 2 minutes and try again.");
+    ST.form["pin"+id]=""; await loadDriver(); ST.note="Trip started. Drive safely."; }),
+  landchip:el=>{ ST.form.rdland="Next to the "+el.dataset.v; },
+  favon:el=>go(async()=>{ await rpc("set_favourite_driver",{p_driver:el.dataset.v,p_on:true}); await loadTrips(); ST.note="Saved. Next time you can ask this driver first."; }),
+  favoff:el=>go(async()=>{ await rpc("set_favourite_driver",{p_driver:el.dataset.v,p_on:false}); await loadTrips(); }),
   jstart:(el,id)=>go(async()=>{await rpc("set_transport_status",{p_request:id,p_status:"started"});await loadDriver();}),
   addroute:()=>go(async()=>{const f=ST.form, from=pl("rf"), to=pl("rt"), cents=Math.round(parseFloat(f.pprice)*100);
     if(!from||!to||same(from,to)) throw new Error("Choose two different places.");
@@ -1304,9 +1336,9 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-13";
+const LEGAL_VERSION="policy-2026-10-14";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
-<p class="sub" style="margin:0 0 12px">Last updated: 13 October 2026.</p>
+<p class="sub" style="margin:0 0 12px">Last updated: 14 October 2026.</p>
 <h3>Who we are</h3>
 <p>Inanda Business Web (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Inanda Business Web is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
 <p>Our address: 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310.</p>
@@ -1317,7 +1349,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <ul>
 <li>Everyone: first name, surname, email address, cell number, your area in Inanda (if your place is not on our list, you can type its name), your password (kept scrambled, so we cannot read it) and when you agreed to this policy.</li>
 <li>Customers: your orders, delivery addresses and transport requests (pick-up address, what is being moved and when).</li>
-<li>Car rides: the pick-up and drop-off places you choose (including a GPS point if you use your location), the distance and price of the ride, and any note you write for the driver. A customer’s phone location is used only when they tap “Use my location”. A driver’s location is sent to our server only while the driver is online, to find rides within a few kilometres, and it is kept for up to 60 minutes only to check that it is real (a position that jumps many kilometres in seconds is rejected and recorded), then deleted.</li>
+<li>Car rides: the pick-up and drop-off places you choose (including a GPS point if you use your location), the distance and price of the ride, any pick-up landmark or note you write for the driver (never put phone numbers or web links there: they are refused), and the 4-digit trip PIN made for each accepted ride. If you save a driver as your regular driver, we keep a short list of up to 5 drivers for you, so that you can ask them first. The PIN is shown only to the customer and the driver who accepted the ride, and is used only to start that trip. A customer’s phone location is used only when they tap “Use my location”. A driver’s location is sent to our server only while the driver is online, to find rides within a few kilometres, and it is kept for up to 60 minutes only to check that it is real (a position that jumps many kilometres in seconds is rejected and recorded), then deleted.</li>
 <li>Shops and other businesses: business name, address, type, menu and prices, and the orders you receive. Construction businesses also give their trade and the places they work in.</li>
 <li>Drivers: your name, face photo, a photo of your car, vehicle details (make, colour, type, number plate), routes and prices, ID number and a photo of your ID.</li>
 <li>The messages you send in chats and the reports you make.</li>
@@ -1331,6 +1363,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h3>Who can see what</h3>
 <ul>
 <li>Cell numbers are not shared between customers and drivers. They talk to each other through messages and voice notes in the app.</li>
+<li>If you ask for your regular driver first, only that driver sees the ride for the first 60 seconds. After that, all car drivers nearby can see it.</li>
 <li>While a car ride is waiting, car drivers who are online within a few kilometres of the pick-up can see its pick-up and drop-off places, the distance and the price.</li>
 <li>A driver’s name, face photo, car photo and vehicle details are shown to customers once the driver is approved.</li>
 <li>A driver’s ID number and ID photo are seen only by the admin of Inanda Business Web. The admin also sees the records of driver positions that were rejected because they jumped too far, too fast. A driver’s position is never shown to customers or to other drivers.</li>
@@ -1359,11 +1392,11 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h3>Using the app</h3>
 <p>Inanda Business Web connects customers with local businesses and drivers. We (Inanda Business Enterprise Services (PTY) LTD, trading as Inanda Business Web) are the platform. Shops sell their own goods, and drivers work for themselves. They do not work for us. Please give true details and keep your password private. You are responsible for what happens on your account.</p>
 <h3>Customers</h3>
-<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
+<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Give your trip PIN only to the driver in the car you booked, after you have checked the car and the driver’s photo. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
 <h3>Shops and other businesses</h3>
 <p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Enterprise Services (PTY) LTD (Inanda Business Web) the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
 <h3>Construction businesses</h3> <p>Choose the trade and the places you really work in, and keep them up to date. Do not type false or offensive text. We may change or remove it, or remove the business.</p> <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Inanda Business Web from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Inanda Business Web permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
-<p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. Car rides can only be accepted by drivers registered with a car whose position is within a few kilometres of the pick-up, and the first one to accept a ride gets it. Do not fake or change your location: a position that jumps many kilometres in seconds is rejected and recorded, and we may suspend your account. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
+<p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. A driver can only start a car ride by typing the customer’s 4-digit PIN, so do not start a trip without it and never ask a customer to send it by message. Car rides can only be accepted by drivers registered with a car whose position is within a few kilometres of the pick-up, and the first one to accept a ride gets it. Do not fake or change your location: a position that jumps many kilometres in seconds is rejected and recorded, and we may suspend your account. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
 <h3>Payments and fees</h3>
 <p>Customers pay shops and drivers directly, in cash. Shops and drivers pay fees to Inanda Business Enterprise Services (PTY) LTD by EFT, using the bank details and reference shown in the app. Tell us when you have paid. We confirm it once the money reaches our account.</p>
 <h3>Behaviour</h3>
@@ -2083,7 +2116,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     if (tab === "own" && xtab === "main" && ownView === "due" && ST.shop) return "own";
     return null;
   }
-  const headText = el => { const h = el.tagName === "H2" ? el : el.querySelector(":scope>h2"); return h ? h.textContent.trim() : ""; };
+  const headText = el => { const h = el.tagName === "H2" ? el : el.querySelector(":scope>h2"); return h ? (h.dataset.en || h.textContent.trim()) : ""; };
   function classify(c, el) {
     const t = headText(el), card = el.classList && el.classList.contains("card");
     if (c === "shop") {
@@ -2337,6 +2370,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     const b = ST.biz, pl = placesOf(b);
     return '<button class="sm" data-a="bizback">← All construction</button><h1>' + esc(b.name) + '</h1><div class="row"><span class="tag">' + esc(b.trade || "Construction") + "</span></div>" + msgs() +
       '<div class="card"><b>Places they work in</b><p style="margin:6px 0 10px">' + (pl.length ? esc(pl.join(", ")) : "Not listed yet.") + '</p><button class="btn" data-a="chatwith" data-v="' + esc(b.owner_id) + '">Message</button><small>You talk in the app. Cell numbers are never shared.</small></div>' +
+      '<div class="card"><b>Need materials moved?</b><p style="margin:6px 0 10px">Book a bakkie driver from this business to your site.</p><button class="btn ghost" data-a="bizdrive">Book a driver for materials</button></div>' +
       (((ST.gal || []).length && window.__galleryHtml) ? window.__galleryHtml() : '<div class="card"><small>No photos of their work yet.</small></div>');
   }
   window.buildScreen = function () {
@@ -2354,6 +2388,10 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     if (!b) throw new Error("That business is no longer listed. Tap Construction again.");
     ST.biz = b; ST.rpid = null;
     try { ST.gal = await sb("/rest/v1/shop_photos?select=id,caption,before_path,after_path&shop_id=eq." + id + "&order=id.desc&limit=12"); } catch (e) { ST.gal = []; }
+  });
+  H.bizdrive = () => go(async () => {
+    const nm = ST.biz ? ST.biz.name : ""; cview = "drive"; ST.biz = null; ST.rd = null; ST.req = true;
+    ST.form.goods = "material"; ST.form.desc = nm ? "Collect materials from " + nm : ""; await loadTrips();
   });
   H.bizback = () => { ST.biz = null; ST.rpid = null; };
 
@@ -2461,5 +2499,114 @@ Object.assign(H,{
 });
 ["shop","shops"].forEach(k=>{ const f=H[k]; if(f) H[k]=function(){ ST.item=null; ST.mcat="All"; return f.apply(this,arguments); }; });
 </script>
+<script>
+// ---- isiZulu option: a button in the header switches the screens between English and isiZulu ----
+// Only whole sentences and labels that are in the list below are changed; anything else (names, messages people typed,
+// errors from the server) stays exactly as it is. Switching back to English restores every original word.
+(function () {
+  const ZU = {
+    "Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.":"Udinga imoto? Khetha Cela imoto: i-app isebenzisa indawo yefoni yakho ukubala ibanga futhi ikubonise intengo ebekiwe. Udinga ukuthutha impahla? Khetha Thutha impahla, uveze lapho uvela khona nalapho uya khona, bese abashayeli abahamba lowo mzila bayamukela. Ukhokhela umshayeli ngemali eyimali. Cindezela Ngifike kahle uma usufikile.",
+    "Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.":"Khetha lapho uvela khona nalapho uya khona. I-app ibala ibanga futhi ikubonise intengo eyodwa ebekiwe ngaphambi kokuba ucele umshayeli. Ukhokhela umshayeli ngemali eyimali.",
+    "Home":"Ikhaya","Messages":"Imiyalezo","Log in":"Ngena","Create account":"Dala i-akhawunti","Forgot password?":"Ukhohlwe iphasiwedi?",
+    "Email address":"Ikheli le-imeyili","Password":"Iphasiwedi","Back":"Emuva","Back to log in":"Buyela ekungeneni","Cancel":"Khansela",
+    "Refresh":"Vuselela","Log out":"Phuma","Search":"Sesha","Change":"Shintsha","Create a password":"Dala iphasiwedi",
+    "Cell number":"Inombolo yeselula","First name":"Igama","Surname":"Isibongo","Your location in Inanda":"Indawo yakho e-Inanda",
+    "I am signing up as":"Ngibhalisa njenge","A customer":"Ikhasimende","A business owner":"Umnikazi webhizinisi","A driver":"Umshayeli",
+    "Send reset link":"Thumela isixhumanisi","Reset your password":"Setha kabusha iphasiwedi yakho",
+    "What do you need?":"Udinga ini?","Tap one to start.":"Khetha okukodwa ukuze uqale.",
+    "Food":"Ukudla","Transport":"Ezokuthutha","Construction":"Ukwakha","Beauty":"Ubuhle","Become a driver":"Yiba umshayeli",
+    "Request a driver":"Cela umshayeli","Request a car ride":"Cela imoto","Move goods (bakkie or truck)":"Thutha impahla (ibakkie noma ilori)",
+    "Pick-up":"Lapho ukhuphuka khona","Drop-off":"Lapho uya khona","Use my location":"Sebenzisa indawo yami",
+    "Choose on the map":"Khetha kumephu","Or search for a place":"Noma sesha indawo","Search for a place":"Sesha indawo",
+    "Use this spot":"Sebenzisa le ndawo","Request this ride":"Cela lolu hambo","Distance":"Ibanga","Fixed price":"Intengo ebekiwe",
+    "Pick-up landmark (optional)":"Isiphawulo sendawo yokukhuphuka (ngokuzithandela)",
+    "Many of our streets have no names. Tell the driver what is next to you.":"Imigwaqo eminingi yethu ayinamagama. Tshela umshayeli ukuthi yini eseduze nawe.",
+    "Spar":"Spar","Taxi rank":"Isitobhi samatekisi","Church":"Isonto","School":"Isikole","Clinic":"Umtholampilo","Tavern":"Ishabhini",
+    "Spaza shop":"Isipaza","Bus stop":"Isitobhi sebhasi",
+    "Ask my regular driver first (they get 60 seconds)":"Qala ngokucela umshayeli wami ojwayelekile (unemizuzwana engu-60)",
+    "No, any nearby driver":"Cha, noma imuphi umshayeli oseduze",
+    "Anything the driver should know (optional)":"Okuthile okufanele umshayeli akwazi (ngokuzithandela)",
+    "The driver will text or send you a voice note. Cell numbers are never shared.":"Umshayeli uzokuthumelela umyalezo noma inothi lezwi. Izinombolo zeselula azabelwani nanini.",
+    "Your trip PIN":"I-PIN yohambo lwakho",
+    "Check the car and the driver's photo, then give the driver this PIN when you get in. The trip cannot start without it. Never send it by message.":"Hlola imoto nesithombe somshayeli, bese upha umshayeli le PIN uma ungena. Uhambo alunakuqala ngayo. Ungayithumeli ngomyalezo.",
+    "I have arrived safely":"Ngifike kahle","Your trips":"Uhambo lwakho","Waiting for drivers":"Kulindwe abashayeli","Waiting for driver":"Kulindwe umshayeli",
+    "Accepted":"Kwamukelwe","Trip started":"Uhambo luqalile","Arrived safely":"Ufike kahle","Cancelled":"Kukhanselwe","Declined":"Kwenqatshiwe","New":"Okusha","Delivered":"Kulethiwe",
+    "Pay the driver in cash":"Khokhela umshayeli ngemali eyimali","Message driver":"Thumelela umshayeli","Message customer":"Thumelela ikhasimende",
+    "Message":"Thumela umyalezo","Book a driver for materials":"Bhukha umshayeli wezinto zokwakha","Need materials moved?":"Udinga izinto zokwakha zithuthwe?",
+    "Book a bakkie driver from this business to your site.":"Bhukha umshayeli webakkie asuke kule bhizinisi aye endaweni yakho.",
+    "Ask the customer for their 4-digit PIN":"Cela ikhasimende i-PIN yalo enezinombolo ezi-4","Start trip":"Qala uhambo",
+    "Go online":"Qala ukusebenza","Go offline":"Yeka ukusebenza","Reject":"Yenqaba","Car rides near you":"Izicelo zezimoto eziseduze nawe",
+    "Your regular customer asked for you":"Ikhasimende lakho elijwayelekile likucele wena",
+    "What you kept":"Okugcinile","Balance to pay":"Imali okufanele uyikhokhe","Trips finished":"Uhambo oluqediwe","Amount due":"Inani elikhokhwayo",
+    "Pay amount due":"Khokha inani elikhokhwayo","Your jobs":"Imisebenzi yakho","Landmark:":"Isiphawulo:","Pick up:":"Indawo yokukhuphula:",
+    "No car rides near you right now.":"Azikho izicelo zezimoto eziseduze nawe okwamanje.","No open jobs.":"Ayikho imisebenzi evuliwe.",
+    "Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts.":"Isicelo sithunyelwe. Abashayeli bezimoto bayasibona manje. Uzozwa umsindo uma umshayeli emukela.",
+    "Thank you. We are glad you arrived safely.":"Siyabonga. Siyajabula ukuthi ufike kahle.",
+    "Trip started. Drive safely.":"Uhambo luqalile. Shayela kahle.",
+    "Ride accepted. Message the customer in the app and go to the pick-up.":"Isicelo samukelwe. Thumelela ikhasimende ku-app bese uya lapho ukhuphula khona.",
+    "Saved. Next time you can ask this driver first.":"Kulondoloziwe. Ngokuzayo ungacela lo mshayeli kuqala.",
+    "That PIN is not right. Ask the customer to read it from their screen.":"Le PIN ayilungile. Cela ikhasimende liyifunde esikrinini salo.",
+    "Type the customer's 4-digit PIN.":"Bhala i-PIN yekhasimende enezinombolo ezi-4.",
+    "Too many wrong tries. Wait 2 minutes and try again.":"Imizamo eminingi engalungile. Linda imizuzu emi-2 uphinde uzame.",
+    "Your regular driver":"Umshayeli wakho ojwayelekile","Delivery address":"Ikheli lokulethelwa","Your orders":"Ama-oda akho",
+    "Loading locations…":"Ilayisha izindawo…","Choose your location":"Khetha indawo yakho"
+  };
+  const PAT = [
+    [/^Save (.+) as my regular driver$/, m => "Gcina u-" + m[1] + " njengomshayeli wami ojwayelekile"],
+    [/^(Today|Last 7 days|This month|All time) · (\d+) rides?$/, m => ({ "Today":"Namuhla","Last 7 days":"Insuku eziyi-7 ezedlule","This month":"Kulenyanga","All time":"Sonke isikhathi" })[m[1]] + " · uhambo " + m[2]],
+    [/^You collect the fare in cash and keep about (\d+)% of it\. The app's share is only what appears in your weekly balance below\. No hidden charges\.$/, m => "Uthola imali yohambo ngesandla bese ugcina cishe u-" + m[1] + "% wayo. Isabelo se-app yilokho kuphela okubonakala ku-balance yakho yesonto ngezansi. Azikho izindleko ezifihliwe."],
+    [/^Accept · (.+)$/, m => "Yamukela · " + m[1]],
+    [/^Car ride · (.+) km · fixed price (.+)$/, m => "Imoto · " + m[1] + " km · intengo ebekiwe " + m[2]],
+    [/^(.+) km trip · pick-up about (.+) km from you$/, m => "Uhambo lwe-" + m[1] + " km · indawo yokukhuphula ingaba yi-" + m[2] + " km kuwe"]
+  ];
+  let lang = "en"; try { lang = localStorage.getItem("inanda_lang") === "zu" ? "zu" : "en"; } catch (e) {}
+  const orig = new Map(), origPh = new Map();
+  const SKIP = /^(SCRIPT|STYLE|TEXTAREA|NOSCRIPT)$/;
+  function tr(s) {
+    const t = s.trim(); if (!t || t.length > 400) return null;
+    let z = Object.prototype.hasOwnProperty.call(ZU, t) ? ZU[t] : null;
+    if (z === null) for (const [re, f] of PAT) { const m = t.match(re); if (m) { z = f(m); break; } }
+    if (z === null) return null;
+    const a = s.indexOf(t); return s.slice(0, a) + z + s.slice(a + t.length);
+  }
+  function doNode(n) {
+    const p = n.parentNode; if (!p || SKIP.test(p.nodeName) || (p.closest && p.closest("#chatlog,[data-notr]"))) return;
+    const z = tr(n.nodeValue); if (z === null || z === n.nodeValue) return;
+    if (!orig.has(n)) orig.set(n, n.nodeValue);
+    n.nodeValue = z;
+    if (/^H[12]$/.test(p.nodeName) && !p.dataset.en) p.dataset.en = orig.get(n).trim();   // the desktop layout reads this
+  }
+  function doTree(root) {
+    if (!root) return;
+    if (root.nodeType === 3) { doNode(root); return; }
+    if (root.nodeType !== 1) return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n; const list = [];
+    while ((n = w.nextNode())) list.push(n);
+    list.forEach(doNode);
+    root.querySelectorAll("[placeholder]").forEach(e => {
+      if (e.closest("#chatlog")) return; const z = tr(e.getAttribute("placeholder")); if (z !== null) { if (!origPh.has(e)) origPh.set(e, e.getAttribute("placeholder")); e.setAttribute("placeholder", z); }
+    });
+  }
+  function all() { doTree(document.getElementById("app")); doTree(document.getElementById("bar")); }
+  function restore() {
+    orig.forEach((v, n) => { if (n.isConnected) { n.nodeValue = v; if (n.parentNode && n.parentNode.dataset) delete n.parentNode.dataset.en; } });
+    origPh.forEach((v, e) => { if (e.isConnected) e.setAttribute("placeholder", v); });
+    orig.clear(); origPh.clear();
+  }
+  const mo = new MutationObserver(ms => { if (lang !== "zu") return; ms.forEach(m => m.addedNodes.forEach(doTree)); });
+  ["app", "bar"].forEach(id => { const e = document.getElementById(id); if (e) mo.observe(e, { childList: true, subtree: true }); });
+  const row = document.createElement("div"); row.style.cssText = "text-align:right;margin:0 0 6px";
+  const b = document.createElement("button"); b.type = "button"; b.className = "sm"; b.id = "langbtn"; b.setAttribute("aria-label", "Language");
+  row.appendChild(b); const bar = document.getElementById("bar"); if (bar && bar.parentNode) bar.parentNode.insertBefore(row, bar);
+  function paint() { b.textContent = lang === "zu" ? "English" : "isiZulu"; document.documentElement.lang = lang === "zu" ? "zu" : "en"; }
+  b.addEventListener("click", () => {
+    lang = lang === "zu" ? "en" : "zu"; try { localStorage.setItem("inanda_lang", lang); } catch (e) {}
+    if (lang === "zu") all(); else restore();
+    paint();
+  });
+  paint(); if (lang === "zu") all();
+})();
+</script>
+
 </body>
 </html>
