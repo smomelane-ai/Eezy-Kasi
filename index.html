@@ -849,15 +849,23 @@ let AC=null, soundOn=(()=>{ try{ return localStorage.getItem("inanda_snd")!=="0"
 let prevUnread=null, seenOrders=null, seenReqs=null;
 function unlockAudio(){ try{ if(!AC){ const C=window.AudioContext||window.webkitAudioContext; if(C) AC=new C(); } if(AC&&AC.state==="suspended") AC.resume(); }catch(e){} }
 ["pointerdown","keydown","touchstart"].forEach(ev=>addEventListener(ev,unlockAudio,{passive:true}));
-function ding(){
+function ding(urgent){
   if(!AC) return;
   try{ const t=AC.currentTime;
+    if(urgent){
+      // loud alarm for new orders and ride requests: about 5 seconds of a two-tone siren, full volume
+      const comp=AC.createDynamicsCompressor(); comp.connect(AC.destination);
+      for(let i=0;i<20;i++){ const d=i*.25, o=AC.createOscillator(), g=AC.createGain(); o.type="square"; o.frequency.value=(i%2)?1480:990;
+        g.gain.setValueAtTime(0,t+d); g.gain.linearRampToValueAtTime(.9,t+d+.01); g.gain.setValueAtTime(.9,t+d+.18); g.gain.linearRampToValueAtTime(0,t+d+.23);
+        o.connect(g); g.connect(comp); o.start(t+d); o.stop(t+d+.25); }
+      return;
+    }
     [[880,0],[1175,.16]].forEach(([f,d])=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type="sine"; o.frequency.value=f;
       g.gain.setValueAtTime(0,t+d); g.gain.linearRampToValueAtTime(.3,t+d+.02); g.gain.exponentialRampToValueAtTime(.001,t+d+.4);
       o.connect(g); g.connect(AC.destination); o.start(t+d); o.stop(t+d+.45); });
   }catch(e){}
 }
-function notifyIncoming(){ if(!soundOn) return; unlockAudio(); ding(); try{ if(navigator.vibrate) navigator.vibrate([150,80,150]); }catch(e){} }
+function notifyIncoming(urgent){ if(!soundOn) return; unlockAudio(); ding(!!urgent); try{ if(navigator.vibrate) navigator.vibrate(urgent?[500,150,500,150,500,150,500,150,500]:[150,80,150]); }catch(e){} }
 function checkIncoming(){
   const cur={}; ST.chats.forEach(c=>{ cur[c.chat_id]=c.unread||0; });
   const hot=ST.chats.some(c=>(c.unread||0)>(prevUnread&&prevUnread[c.chat_id]||0));
@@ -871,12 +879,12 @@ async function pollWork(){
     if(user.tab==="own"){
       await loadOwner();
       const ids=(ST.orders||[]).filter(o=>o.status==="placed").map(o=>o.id);
-      if(seenOrders&&ids.some(i=>!seenOrders.includes(i))) notifyIncoming();
+      if(seenOrders&&ids.some(i=>!seenOrders.includes(i))) notifyIncoming(true);
       seenOrders=ids;
     }else if(user.tab==="drv"){
       await loadDriver();
       const ids=(ST.openReqs||[]).concat(ST.rides||[]).map(r=>r.id);
-      if(seenReqs&&ids.some(i=>!seenReqs.includes(i))) notifyIncoming();
+      if(seenReqs&&ids.some(i=>!seenReqs.includes(i))) notifyIncoming(true);
       seenReqs=ids;
     }else if(user.tab==="cust"&&cview==="drive"&&!ST.rd&&!ST.req){
       const prev={}; (ST.trips||[]).forEach(t=>{prev[t.id]=t.status;});
@@ -1196,7 +1204,7 @@ const H={
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
     const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
   goonline:()=>go(async()=>{ST.online=true; await loadDriver();}),
-  gooffline:()=>{ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr="";},
+  gooffline:()=>{ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr=""; rpc("driver_go_offline",{}).catch(()=>{});},
   takeride:(el,id)=>go(async()=>{const p=ST.here||await getPos(); await rpc("accept_car_ride",{p_request:id,p_lat:p.lat,p_lng:p.lng}); await loadDriver(); xtab="main"; ST.note="Ride accepted. Message the customer in the app and go to the pick-up.";}),
   declineride:(el,id)=>go(async()=>{await rpc("decline_car_ride",{p_request:id}); ST.rides=(ST.rides||[]).filter(x=>x.id!==id);}),
   sendreq:()=>go(async()=>{const f=ST.form, b=Math.round(parseFloat(f.budget)*100);

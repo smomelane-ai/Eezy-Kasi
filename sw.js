@@ -1,6 +1,6 @@
 // Service worker for Inanda Business Web.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v60";
+const VERSION = "inanda-v62";
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
@@ -91,7 +91,7 @@ self.addEventListener("push", e => {
     return self.registration.showNotification(d.title || "Inanda Business Web", {
       body: d.body || "You have something new.",
       icon: "icons/icon-192.png", badge: "icons/icon-192.png",
-      tag: d.tag || "inanda", renotify: true, vibrate: [150, 80, 150],
+      tag: d.tag || "inanda", renotify: true, requireInteraction: true, silent: false, vibrate: [500, 150, 500, 150, 500, 150, 500, 150, 500],
       data: { url: d.url || "./" }
     });
   }));
