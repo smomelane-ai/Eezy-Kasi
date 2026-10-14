@@ -688,9 +688,9 @@ function driver(){
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
   ${earnCard()}${carCard}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
-  <h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
+  ${me.vehicle_type==="car"?"":`<h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
     ${placeSel("rf","From")}${placeSel("rt","To")}${fld("pprice","Price in rand","e.g. 200","number")}
-    <button class="btn" data-a="addroute">Save route price</button></div>`;
+    <button class="btn" data-a="addroute">Save route price</button></div>`}`;
 }
 function owner(){
   if(ownView==="pay") return payScreen();
