@@ -245,7 +245,7 @@ async function loadCust(){
 }
 async function loadMenu(shop){
   ST.shop=shop; ST.cart={};
-  ST.menu=await sb(`/rest/v1/menu_items?select=id,name,app_price_cents,shop_price_cents,description,category,image_url&shop_id=eq.${shop.id}&is_available=eq.true&order=id`);
+  ST.menu=await sb(`/rest/v1/menu_items?select=id,name,app_price_cents,shop_price_cents,pickup_price_cents,description,category,image_url&shop_id=eq.${shop.id}&is_available=eq.true&order=id`);
   ST.posts=[]; try{ ST.posts=await sb(`/rest/v1/shop_posts?select=id,caption,image_url,before_url&shop_id=eq.${shop.id}&order=id.desc&limit=12`); }catch(e){}
 }
 async function loadOwner(){
@@ -254,7 +254,7 @@ async function loadOwner(){
   const id=ST.shop.id, base=`/rest/v1/orders?shop_id=eq.${id}`;
   const r=await Promise.all([
     sb(base+"&select=id,status,cash_cents,shop_cents,delivery_address,customer_id,order_items(name,quantity)&status=in.(placed,accepted)&order=id"),
-    sb(`/rest/v1/menu_items?select=id,name,shop_price_cents,app_price_cents,description,category,image_url&shop_id=eq.${id}&order=id`),
+    sb(`/rest/v1/menu_items?select=id,name,shop_price_cents,app_price_cents,pickup_price_cents,description,category,image_url&shop_id=eq.${id}&order=id`),
     sb(`/rest/v1/shop_amount_due?select=*&shop_id=eq.${id}`),
     sb(base+"&select=id,cash_cents,fee_cents,credit_cents,net_due_cents&status=eq.delivered&payment_id=is.null&order=id")]);
   ST.orders=r[0]; ST.menu=r[1]; ST.due=r[2][0]||{}; ST.stmt=r[3];
@@ -396,14 +396,14 @@ function food(){
     const list=ST.shops.filter(s=>(s.category||"food")===cat.k).map(s=>`<div class="row"><b>${esc(s.name)}</b><span><button class="sm" data-a="chatwith" data-v="${s.owner_id}">Message</button> <button class="sm" data-a="shop" data-id="${s.id}">Order</button></span></div>`).join("");
     return `<h1>${esc(cat.l)} in ${esc(loc)}</h1><p class="sub">You pay cash when your order arrives.</p>${msgs()}<div class="card">${list||"<small>No "+esc(cat.l.toLowerCase())+" businesses are open in this area yet.</small>"}</div>${hist}`;
   }
-  const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&!!ST.pickup, pr=i=>pick?i.shop_price_cents:i.app_price_cents;
+  const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&!!ST.pickup, pr=i=>pick?(i.pickup_price_cents||i.shop_price_cents):i.app_price_cents;
   const total=ST.menu.reduce((a,i)=>a+(ST.cart[i.id]||0)*pr(i),0);
   const cur=ST.item?ST.menu.find(x=>x.id===ST.item):null; if(cur) return itemDetail(cur,pr,total); if(ST.item) ST.item=null;
   const items=menuTabs()+menuGrid(pr);
   const gal=(ST.posts&&ST.posts.length)?`<h2>${cview==="beauty"?"Recent work":"Menu and pictures"}</h2>${ST.posts.map(x=>postCard(x)).join("")}`:"", top=cview==="beauty"?gal:"", bottom=cview==="beauty"?"":gal;
   return `<h1>${esc(ST.shop.name)}</h1><p class="sub">${pick?"Pick up at the shop. You pay cash when you collect.":"Delivered in "+esc(loc)+". You pay cash when it arrives."}</p>${msgs()}${top}
   <div class="card">${canPick?`<div class="seg" role="tablist"><button role="tab" aria-checked="${!pick}" data-a="pmode" data-v="deliver">Delivery</button><button role="tab" aria-checked="${pick}" data-a="pmode" data-v="pickup">Pick up</button></div>`:""}${items||"<small>No items on the menu yet.</small>"}
-    ${pick?`<div class="note">You collect your order at <b>${esc(ST.shop.name)}</b> and pay cash there. These are the shop's own prices.</div>`:`<label for="addr">Delivery address</label>
+    ${pick?`<div class="note">You collect your order at <b>${esc(ST.shop.name)}</b> and pay cash there. Pick up prices include a small app fee.</div>`:`<label for="addr">Delivery address</label>
     <input id="addr" type="text" style="width:100%" value="${esc(ST.address)}" data-a="addr" placeholder="House number and street">`}
     <div class="row"><b>${pick?"Pay cash at pick-up":"Pay cash on delivery"}</b><b>${R(total)}</b></div>
     <button class="btn" data-a="order" ${total?"":"disabled"}>Place order</button>
@@ -646,12 +646,12 @@ function owner(){
   const bn=sh.status==="paused"?'<div class="banner bad"><strong>Your shop is paused</strong>Customers cannot order until the amount due is paid.</div>':"";
   const open=ST.orders.map(o=>{
     const t=tagFor(o.status), what=(o.order_items||[]).map(l=>l.quantity+"× "+esc(l.name)).join(", ");
-    const pk=ST.pickIds&&ST.pickIds.has(o.id), cr=pk?0:Math.round(o.cash_cents*0.05), net=pk?Math.round(o.cash_cents*0.15):(o.cash_cents-o.shop_cents)-cr; let act="";
+    const pk=ST.pickIds&&ST.pickIds.has(o.id), cr=pk?0:Math.round(o.cash_cents*0.05), net=pk?(o.cash_cents-o.shop_cents):(o.cash_cents-o.shop_cents)-cr; let act="";
     if(cancelling===o.id) act=`<select id="why"><option>Customer not answering</option><option>Out of stock</option><option>Shop closed</option><option>Too far to deliver</option></select><button class="btn ghost" data-a="docancel" data-id="${o.id}">Confirm cancel</button>`;
     else act=(o.status==="placed"?`<button class="btn" data-a="accept" data-id="${o.id}">Accept order</button>`:`<button class="btn" data-a="deliver" data-id="${o.id}">${pk?"Collected — cash received":"Delivered — cash collected"}</button>`)+`<button class="btn ghost" data-a="cancel" data-id="${o.id}">Cancel</button>`;
     return `<div class="card"><div class="row"><b>Order #${o.id}</b><span>${pk?'<span class="tag">Pick up</span> ':""}<span class="tag ${t[1]}">${t[0]}</span></span></div><p style="margin:4px 0">${what}</p><p style="margin:4px 0"><small>${pk?"<b>PICK UP</b>: the customer collects at your shop":"Deliver to: "+esc(o.delivery_address)}</small> <button class="sm" data-a="chatwith" data-v="${o.customer_id}">Message customer</button></p>
-      <p class="note" style="margin:6px 0">${pk?`The customer pays <b>${R(o.cash_cents)}</b> cash at your shop. You keep ${R(o.cash_cents-net)}. You owe ${R(net)} (15%).`:`Collect <b>${R(o.cash_cents)}</b> cash. You keep ${R(o.shop_cents+cr)}. You owe ${R(net)}.`}</p>${act}</div>`;}).join("");
-  const prices=ST.menu.map(i=>`<div class="row"><span>${esc(i.name)}</span><span>Shop R <input type="number" min="1" step="0.5" value="${i.shop_price_cents/100}" data-a="price" data-id="${i.id}" aria-label="Shop price for ${esc(i.name)}"> → app <b>${R(i.app_price_cents)}</b></span></div>`).join("");
+      <p class="note" style="margin:6px 0">${pk?`The customer pays <b>${R(o.cash_cents)}</b> cash at your shop. You keep your full price of ${R(o.shop_cents)}. The extra ${R(net)} is the app fee the customer pays on top, and you pass it on to Inanda Business Web.`:`Collect <b>${R(o.cash_cents)}</b> cash. You keep ${R(o.shop_cents+cr)}. You owe ${R(net)}.`}</p>${act}</div>`;}).join("");
+  const prices=ST.menu.map(i=>`<div class="row"><span>${esc(i.name)}</span><span>Shop R <input type="number" min="1" step="0.5" value="${i.shop_price_cents/100}" data-a="price" data-id="${i.id}" aria-label="Shop price for ${esc(i.name)}"> → delivery <b>${R(i.app_price_cents)}</b> · pick up <b>${R(i.pickup_price_cents||i.shop_price_cents)}</b></span></div>`).join("");
   return `<h1>${esc(sh.name)}</h1><p class="sub">Pay on the 1st of every month.</p>${bn}${msgs()}
   <div class="card"><h2>Amount due</h2>
     <div class="row"><span>Orders delivered</span><b>${d.orders_delivered||0}</b></div>
@@ -662,7 +662,7 @@ function owner(){
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button>
     <button class="btn ghost" data-a="stmt">View monthly statement</button></div>
   <h2>Incoming orders</h2>${open||'<div class="card"><small>No open orders. New orders show up here when you tap Refresh.</small></div>'}
-  <h2>Your menu prices</h2><div class="card">${prices||"<small>No menu items yet.</small>"}<div class="note">Customers pay the app price in cash. You keep the shop price (plus the delivery credit).</div></div>`;
+  <h2>Your menu prices</h2><div class="card">${prices||"<small>No menu items yet.</small>"}<div class="note">Customers pay the delivery price or the pick up price in cash. You always keep your full shop price (plus the delivery credit on deliveries).</div></div>`;
 }
 function stmtScreen(){
   const u=ST.stmt, t=k=>R(u.reduce((a,o)=>a+(o[k]||0),0));
@@ -671,7 +671,7 @@ function stmtScreen(){
   <div class="card" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;text-align:right">
     <tr><th style="text-align:left">Order</th><th>Cash</th><th>Fee</th><th>Credit</th><th>You owe</th></tr>${rows}
     <tr><th style="text-align:left">Total</th><th>${t("cash_cents")}</th><th>${t("fee_cents")}</th><th>−${t("credit_cents")}</th><th>${t("net_due_cents")}</th></tr></table>
-    <div class="note">Fee is 25% of the app price. The delivery credit is 5% of the app price. You owe the fee minus the credit. Pick-up orders: the fee is 15% of the cash paid, with no delivery credit.</div>
+    <div class="note">Fee is 25% of the app price. The delivery credit is 5% of the app price. You owe the fee minus the credit. Pick-up orders: the customer pays your shop price plus about 15%, rounded up to the next rand. You keep your full shop price and only pass on the extra the customer paid. There is no delivery credit.</div>
     <button class="btn ghost" data-a="back">Back</button></div>`;
 }
 function payRef(){
