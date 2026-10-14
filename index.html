@@ -476,7 +476,12 @@ function messagesScreen(){
 }
 function msgTabs(){
   const main={own:"My shop",drv:"My jobs",adm:"Admin"}[user.tab];
-  return `<div class="seg" role="tablist">${[["main",main],["msgs","Messages"]].map(([k,l])=>`<button role="tab" aria-checked="${xtab===k}" data-a="xtab" data-v="${k}">${l}${k==="msgs"?mbadge():""}</button>`).join("")}</div>`;
+  let tabs=[["main",main],["msgs","Messages"]];
+  if(user.tab==="drv"){
+    const offered=new Set((ST.myOffers||[]).map(o=>o.request_id)), n=(ST.online?(ST.rides||[]).length:0)+(ST.openReqs||[]).filter(r=>!offered.has(r.id)).length;
+    tabs=[["req","Requests"+(n?" ("+n+")":"")+(ST.online?" 🟢":"")],["main",main],["msgs","Messages"]];
+  }
+  return `<div class="seg" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-checked="${xtab===k}" data-a="xtab" data-v="${k}">${l}${k==="msgs"?mbadge():""}</button>`).join("")}</div>`;
 }
 const CATS={food:{k:"food",l:"Food"},build:{k:"construction",l:"Construction"},beauty:{k:"beauty",l:"Beauty"}};
 function homeTiles(){
@@ -669,13 +674,19 @@ function driver(){
     const act=j.status==="accepted"?(j.ride_type==="car"?`<label for="f_pin${j.id}">Ask the customer for their 4-digit PIN</label><input id="f_pin${j.id}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="width:100%;font-size:28px;letter-spacing:10px;text-align:center" value="${esc(ST.form["pin"+j.id]||"")}" data-a="form" data-k="pin${j.id}" placeholder="0000"><button class="btn" data-a="jstartpin" data-id="${j.id}">Start trip</button>`:`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`):'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
     return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}${j.pickup_landmark?"<br>Landmark: <b>"+esc(j.pickup_landmark)+"</b>":""}<br>When: ${esc(j.when_text||"-")}<br>The customer will text or send you a voice note. Cell numbers are not shared.</small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}</div>`}).join("");
   const routes=ST.myRoutes.map(p=>`<div class="row"><span>${esc(p.from_place)} → ${esc(p.to_place)}</span><span><b>${R(p.price_cents)}</b> <button class="sm" data-a="delroute" data-id="${p.id}">Remove</button></span></div>`).join("");
+  if(xtab==="req"){
+    const act=(ST.jobs||[]).length;
+    const goods=`<h2>${me.vehicle_type==="car"?"Goods requests":"Requests"} for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}`;
+    return `<h1>Requests</h1><p class="sub">${me.vehicle_type==="car"?"Go online here, then new customer requests appear on this screen.":"Customers asking for your routes appear here."}</p>${bn}${msgs()}
+  ${act?`<div class="banner ok"><strong>You have ${act} active job${act===1?"":"s"}</strong><button class="sm" style="margin-top:8px" data-a="xtab" data-v="main">Open My jobs</button></div>`:""}
+  ${rideSec}${goods}`;
+  }
   return `<h1>${esc(me.full_name)}</h1><p class="sub">Trips are paid weekly.</p>${bn}${msgs()}
   <div class="card"><h2>Balance to pay</h2><div class="row"><span>Trips finished</span><b>${d.jobs_completed||0}</b></div>
     <div class="row"><span>Amount due</span><b class="big">${R(due)}</b></div>
     <div class="note">Pay your balance within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
-  ${earnCard()}${carCard}${rideSec}
-  <h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}
+  ${earnCard()}${carCard}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
   <h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
     ${placeSel("rf","From")}${placeSel("rt","To")}${fld("pprice","Price in rand","e.g. 200","number")}
@@ -875,7 +886,7 @@ async function pollWork(){
     }else return;
     const a=document.activeElement, typing=a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
     const picking=[...document.querySelectorAll("input[type=file]")].some(f=>f.files&&f.files.length);   // keep pictures the owner just chose
-    if(!typing&&!picking&&xtab==="main"&&ownView==="due"&&!cancelling) render();
+    if(!typing&&!picking&&(xtab==="main"||(user.tab==="drv"&&xtab==="req"))&&ownView==="due"&&!cancelling) render();
   }catch(e){}
 }
 
@@ -951,7 +962,7 @@ async function afterLogin(s){
   sess=s; localStorage.setItem("inanda_sess",JSON.stringify(s));
   let p; try{ p=await sb("/rest/v1/profiles?select=role,name,surname,phone,area_name,status,requested_role&id=eq."+s.user.id); }catch(e){ p=await sb("/rest/v1/profiles?select=role&id=eq."+s.user.id); }
   const role=(p&&p[0]&&p[0].role)||"customer";
-  const status=(p&&p[0]&&p[0].status)||"approved"; prevUnread=null; seenOrders=null; seenReqs=null; user={tab:(status!=="approved"&&role!=="admin")?"pend":{customer:"cust",owner:"own",admin:"adm",driver:"drv"}[role]}; cview="home"; tab=user.tab; ownView="due"; xtab="main"; loc=null; locId=null; authMsg=""; ST.profile=(p&&p[0])||{}; if(ST.profile.phone) ST.form.phone=ST.form.phone||ST.profile.phone;
+  const status=(p&&p[0]&&p[0].status)||"approved"; prevUnread=null; seenOrders=null; seenReqs=null; user={tab:(status!=="approved"&&role!=="admin")?"pend":{customer:"cust",owner:"own",admin:"adm",driver:"drv"}[role]}; cview="home"; tab=user.tab; ownView="due"; xtab=role==="driver"?"req":"main"; loc=null; locId=null; authMsg=""; ST.profile=(p&&p[0])||{}; if(ST.profile.phone) ST.form.phone=ST.form.phone||ST.profile.phone;
   try{ await loadAreas(); const ar=ST.areas.find(x=>x.name===ST.profile.area_name); if(role==="customer"&&ar){ loc=ar.name; locId=ar.id; } if(user.tab==="pend") await loadPending(); else if(role==="owner") await loadOwner(); else if(role==="admin") { await loadAdmin(); await loadFeed(); } else if(role==="driver") await loadDriver(); else { await loadCust(); await loadMe(); await loadFeed(); } try{ if(user.tab!=="pend") await loadChats(); }catch(e){} }catch(e){ ST.err=e.message; }
   seenOrders=(ST.orders||[]).filter(o=>o.status==="placed").map(o=>o.id); seenReqs=(ST.openReqs||[]).concat(ST.rides||[]).map(r=>r.id);
   if(role!=="customer") loadBank();
@@ -1186,7 +1197,7 @@ const H={
     const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
   goonline:()=>go(async()=>{ST.online=true; await loadDriver();}),
   gooffline:()=>{ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr="";},
-  takeride:(el,id)=>go(async()=>{const p=ST.here||await getPos(); await rpc("accept_car_ride",{p_request:id,p_lat:p.lat,p_lng:p.lng}); await loadDriver(); ST.note="Ride accepted. Message the customer in the app and go to the pick-up.";}),
+  takeride:(el,id)=>go(async()=>{const p=ST.here||await getPos(); await rpc("accept_car_ride",{p_request:id,p_lat:p.lat,p_lng:p.lng}); await loadDriver(); xtab="main"; ST.note="Ride accepted. Message the customer in the app and go to the pick-up.";}),
   declineride:(el,id)=>go(async()=>{await rpc("decline_car_ride",{p_request:id}); ST.rides=(ST.rides||[]).filter(x=>x.id!==id);}),
   sendreq:()=>go(async()=>{const f=ST.form, b=Math.round(parseFloat(f.budget)*100);
     await rpc("request_transport",{p_from:pl("rfrom"),p_to:pl("rto"),p_goods:f.goods||"furniture",p_description:f.desc||"",p_pickup:f.pickup||"",p_when:f.when||"",p_phone:"",p_budget_cents:b>0?b:null});
@@ -2148,7 +2159,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   function isWide() {
     if (!user) return false;
     if (tab === "cust") return ["home", "food", "build", "beauty"].includes(cview);
-    if (tab === "own" || tab === "drv" || tab === "adm") return xtab === "main" && ownView === "due";
+    if (tab === "own" || tab === "drv" || tab === "adm") return (xtab === "main" || (tab === "drv" && xtab === "req")) && ownView === "due";
     return false;
   }
 
