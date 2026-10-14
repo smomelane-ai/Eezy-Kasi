@@ -1,6 +1,6 @@
 // Service worker for Inanda Business Web.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v63";
+const VERSION = "inanda-v64";
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];

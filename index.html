@@ -2288,6 +2288,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   }
   H.pushon = () => go(async () => { await enable(); ST.note = "Alerts are on. You will hear a sound when something new arrives, even when the app is closed."; });
   H.pushno = () => { setKey("no"); };
+  H.pushreload = () => { location.reload(); };
   const _snd = H.sndtoggle;
   H.sndtoggle = () => {
     _snd();
@@ -2310,7 +2311,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     if (crit && soundOn && app && !app.querySelector(".pushfix")) {
       let msg = "", btn = "";
       if (!supported()) msg = "<strong>Alerts cannot work in this browser</strong>You will not hear new requests or orders while the app is closed. Open the app in Chrome (Android) or Safari (iPhone), and on an iPhone add it to your Home Screen first. If you opened it from WhatsApp or Facebook, tap the menu and choose Open in Chrome.";
-      else if (Notification.permission === "denied") msg = "<strong>Alerts are blocked on this phone</strong>You will not hear new requests or orders while the app is closed. Open your phone Settings, find the app or Chrome, choose Notifications, and turn them on. Then come back here and tap Refresh.";
+      else if (Notification.permission === "denied") { msg = "<strong>Alerts are blocked for this app in Chrome</strong>You will not hear new requests or orders while the app is closed. Even when Chrome notifications are on in your phone settings, Chrome keeps a separate block for this website. To clear it: tap the lock or settings icon next to the web address (or the three dots, then Settings), choose Permissions or Site settings, tap Notifications, and choose Allow. If you installed the app on your Home Screen, press and hold its icon, tap the i, then Notifications, and turn them on. Then tap the button below."; btn = '<button class="btn" data-a="pushreload">I allowed it, check again</button>'; }
       else if (getKey() !== "on") { msg = "<strong>Alerts are OFF on this phone</strong>You will not hear new requests or orders while the app is closed. Tap the button, then tap Allow when your phone asks."; btn = '<button class="btn" data-a="pushon">Turn on alerts</button>'; }
       if (msg) { const d = document.createElement("div"); d.className = "banner bad pushfix"; d.innerHTML = msg + btn; const first = app.querySelector(".seg"); if (first) first.insertAdjacentElement("afterend", d); else app.insertBefore(d, app.firstChild); }
     }
