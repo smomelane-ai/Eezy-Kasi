@@ -2304,9 +2304,18 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   const _render = render;
   render = function () {
     _render();
-    if (!user || user.tab === "pend" || !supported()) return;
-    const app = document.getElementById("app");
-    if (getKey() === "" && Notification.permission !== "denied" && app && !app.querySelector(".pushask")) {
+    if (!user || user.tab === "pend") return;
+    const app = document.getElementById("app"), crit = user.tab === "drv" || user.tab === "own";
+    // drivers and shop owners live on these alerts, so if alerts are not working on this phone the app says so, every time
+    if (crit && soundOn && app && !app.querySelector(".pushfix")) {
+      let msg = "", btn = "";
+      if (!supported()) msg = "<strong>Alerts cannot work in this browser</strong>You will not hear new requests or orders while the app is closed. Open the app in Chrome (Android) or Safari (iPhone), and on an iPhone add it to your Home Screen first. If you opened it from WhatsApp or Facebook, tap the menu and choose Open in Chrome.";
+      else if (Notification.permission === "denied") msg = "<strong>Alerts are blocked on this phone</strong>You will not hear new requests or orders while the app is closed. Open your phone Settings, find the app or Chrome, choose Notifications, and turn them on. Then come back here and tap Refresh.";
+      else if (getKey() !== "on") { msg = "<strong>Alerts are OFF on this phone</strong>You will not hear new requests or orders while the app is closed. Tap the button, then tap Allow when your phone asks."; btn = '<button class="btn" data-a="pushon">Turn on alerts</button>'; }
+      if (msg) { const d = document.createElement("div"); d.className = "banner bad pushfix"; d.innerHTML = msg + btn; const first = app.querySelector(".seg"); if (first) first.insertAdjacentElement("afterend", d); else app.insertBefore(d, app.firstChild); }
+    }
+    if (!supported()) return;
+    if (getKey() === "" && !crit && Notification.permission !== "denied" && app && !app.querySelector(".pushask")) {
       const d = document.createElement("div"); d.className = "card pushask";
       d.innerHTML = '<b>Get alerts with sound</b><p style="margin:6px 0 10px">Hear a sound when you get a message, an order or a trip request, even when the app is closed. You can turn it off any time with the bell at the top.</p><button class="btn" data-a="pushon">Turn on alerts</button><button class="btn ghost" data-a="pushno">Not now</button>';
       const first = app.querySelector(".seg"); if (first) first.insertAdjacentElement("afterend", d); else app.insertBefore(d, app.firstChild);
