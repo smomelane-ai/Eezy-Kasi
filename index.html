@@ -222,8 +222,15 @@ const KEEPF={};   // photos a person already chose, so a redraw (for example aft
 function restoreFiles(){
   for(const id in KEEPF){ const el=document.getElementById(id); if(!el||el.type!=="file"||(el.files&&el.files.length)) continue;
     try{ const dt=new DataTransfer(); dt.items.add(KEEPF[id]); el.files=dt.files; }catch(e){} }
+  try{ markChosen(); }catch(e){}
 }
 const clearFiles=()=>{ for(const k in KEEPF) delete KEEPF[k]; };
+function markChosen(){
+  document.querySelectorAll('#app input[type=file]').forEach(el=>{
+    let n=el.nextElementSibling; if(!(n&&n.classList.contains("chosen"))){ n=document.createElement("small"); n.className="chosen"; n.style.display="block"; el.insertAdjacentElement("afterend",n); }
+    const f=el.files&&el.files[0]; n.textContent=f?"\u2714 Chosen: "+f.name.slice(0,40)+" ("+Math.max(1,Math.round(f.size/1024))+" KB)":"";
+  });
+}
 const blank=()=>({areas:[],shops:[],shop:null,menu:[],cart:{},address:"",orders:[],due:{},stmt:[],mine:[],all:[],err:"",note:"",offers:[],trips:[],rd:null,here:null,rides:[],me:null,myRoutes:[],openReqs:[],myOffers:[],contacts:{},jobs:[],dDue:{},pend:[],pays:[],xtrips:[],form:{nsrc:"Chris"},chats:[],thread:null,msgs:[],threadWith:null,unread:0,profile:{},req:false,news:[],vids:[],feedErr:"",reporting:false,members:[],reports:[],atab:"over",mfilter:"pending",openm:{},custAppr:false,membersErr:"",shopApp:null});
 let ST=blank();
 const tagFor = st => ({placed:["New","bad"],accepted:["Accepted",""],delivered:["Delivered","ok"],cancelled:["Cancelled",""],open:["Waiting for drivers","bad"],requested:["Waiting for driver","bad"],started:["Trip started",""],declined:["Declined",""],completed:["Arrived safely","ok"]}[st]||[st,""]);
@@ -369,18 +376,33 @@ async function loadDriver(){
     try{ ST.here=await getPos(); const ok=await rpc("check_my_position",{p_lat:ST.here.lat,p_lng:ST.here.lng}); if(ok===false){ ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr="Your location jumped too far, too fast, so the app could not trust it. Go online again when you are at your real position."; } else { ST.rides=(await rpc("open_car_rides",{p_lat:ST.here.lat,p_lng:ST.here.lng}))||[]; } }catch(e){ ST.rideErr=e.message; }
   }
 }
-async function shrink(file){
-  try{ const bmp=await createImageBitmap(file), k=Math.min(1,1280/Math.max(bmp.width,bmp.height));
-    const c=document.createElement("canvas"); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
-    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
-    const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.8)); return blob||file;
-  }catch(e){ return file; }
+async function shrink(file,strict){
+  // strict = driver pictures: they must end up as a normal JPG under 4.5 MB, or the person is told clearly what to do.
+  const fail=()=>{ if(!strict) return file; throw new Error("This picture is in a format we cannot read"+(file.type?" ("+file.type.replace("image/","")+")":"")+". Please take it again with the normal camera setting (JPG), or choose another picture."); };
+  let bmp=null;
+  try{ bmp=await createImageBitmap(file); }catch(e){
+    try{ bmp=await new Promise((ok,no)=>{ const u=URL.createObjectURL(file), im=new Image(); im.onload=()=>ok(im); im.onerror=()=>no(new Error("unreadable")); im.src=u; }); }catch(e2){ bmp=null; }
+  }
+  if(!bmp){ if(strict&&["image/jpeg","image/png","image/webp"].includes(file.type)&&file.size<4.5*1048576) return file; return fail(); }
+  const w0=bmp.naturalWidth||bmp.width, h0=bmp.naturalHeight||bmp.height;
+  for(const [mx,q] of [[1280,.8],[1000,.7],[720,.6]]){
+    try{
+      const k=Math.min(1,mx/Math.max(w0,h0)), c=document.createElement("canvas"); c.width=Math.round(w0*k); c.height=Math.round(h0*k);
+      c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+      const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",q));
+      if(blob&&(!strict||blob.size<4.5*1048576)) return blob;
+    }catch(e){}
+  }
+  if(strict) throw new Error("This picture is too big. Please take it again or choose a smaller one.");
+  return file;
 }
 async function upload(bucket,file,name){
-  const body=await shrink(file), path=sess.user.id+"/"+name;
+  const what={photo:"Your face photo",car:"The photo of your car",id:"The photo of your ID"}[name]||"The picture";
+  let body; try{ body=await shrink(file,true); }catch(e){ throw new Error(what+": "+e.message); }
+  const path=sess.user.id+"/"+name;
   const r=await fetch(`${SB_URL}/storage/v1/object/${bucket}/${path}`,{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+sess.access_token,"x-upsert":"true","Content-Type":body.type||"image/jpeg"},body});
   if(!r.ok){ let m=""; try{ m=(await r.json()).message||""; }catch(e){}
-    throw new Error("Could not upload the picture"+(m?": "+m:"")+" (code "+r.status+")"); }
+    throw new Error("Could not upload "+what.toLowerCase()+(m?": "+m:"")+" (code "+r.status+"). Check your data connection and try again."); }
   return path;
 }
 async function uploadPost(shopId,file){
@@ -624,7 +646,7 @@ function applyScreen(){
   ${sel("vtype","Vehicle type",[["bakkie","Bakkie"],["car","Car"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
   <label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*">
   <label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">
-  <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox"><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
+  <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox" data-a="chk" data-k="consent" ${ST.form.consent?"checked":""}><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
   <button class="btn" data-a="apply">Send application</button></div>`;
 }
 function earnCard(){
@@ -988,11 +1010,12 @@ async function doSignup(){
           const pp=await upload("driver-photos",photo,"photo"), cp=await upload("driver-photos",carfile,"car"), ip=await upload("driver-ids",idfile,"id");
           await rpc("apply_as_driver",{p_name:f.name,p_phone:phone,p_make:f.make.trim(),p_colour:f.colour.trim(),p_plate:f.plate.trim(),p_type:f.vtype||"bakkie",p_id_number:f.idno.trim(),p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp}); clearFiles();
           await loadMe(); ST.note="Application sent. We will check your details and approve you.";
-        }catch(e){ ST.err="Your account was created, but we could not send your vehicle details ("+e.message+"). Tap Become a driver to send them again."; }
+        }catch(e){ ST.err="Your account was created, but we could not send your vehicle details ("+e.message+"). Send them again from the form on this screen (or tap Become a driver)."; }
       }
     }else{ authMsg="Account created. Check your email to confirm it, then log in."+(biz?" Your business will be checked before it goes live.":"")+(drv?" After you log in, tap Become a driver to send your vehicle details.":""); authView="login"; }
   }catch(e){ authMsg=e.message; }
   render();
+  if(authMsg||ST.err) window.scrollTo({top:0,behavior:"smooth"});
 }
 let authView="login", recoveryToken=null;
 async function doRecover(){
@@ -1157,6 +1180,7 @@ const H={
     if(!document.getElementById("f_consent").checked) throw new Error("Please tick the box to agree.");
     const ph=document.getElementById("f_photo").files[0], idf=document.getElementById("f_idfile").files[0], carf=document.getElementById("f_carphoto").files[0];
     if(!ph||!carf||!idf) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
+    ST.note="Sending your photos… please wait, this can take a minute on mobile data."; render();
     const pp=await upload("driver-photos",ph,"photo"), cp=await upload("driver-photos",carf,"car"), ip=await upload("driver-ids",idf,"id");
     await rpc("apply_as_driver",{p_name:f.name||"",p_phone:f.phone||"",p_make:f.make||"",p_colour:f.colour||"",p_plate:f.plate||"",p_type:f.vtype||"bakkie",p_id_number:f.idno||"",p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp});
     clearFiles(); await loadMe(); ST.note="Application sent. We will check your details and approve you."; }),
@@ -1237,7 +1261,7 @@ document.body.addEventListener("click",e=>{
 });
 document.body.addEventListener("change",e=>{
   const t=e.target, a=t.dataset.a;
-  if(t.type==="file"&&["f_photo","f_idfile","f_carphoto","f_carnew","m_file"].includes(t.id)){ if(t.files&&t.files[0]) KEEPF[t.id]=t.files[0]; else delete KEEPF[t.id]; }
+  if(t.type==="file"&&["f_photo","f_idfile","f_carphoto","f_carnew","m_file"].includes(t.id)){ if(t.files&&t.files[0]) KEEPF[t.id]=t.files[0]; else delete KEEPF[t.id]; try{ markChosen(); }catch(e){} }
   if(a==="bank"){ if(BANK){BANK[t.dataset.k]=t.value; saveBank(t.dataset.k,t.value);} }
   else if(a==="addr"){ ST.address=t.value; }
   else if(a==="chk"){ ST.form[t.dataset.k]=t.checked; }
