@@ -1032,7 +1032,7 @@ async function doSignup(){
     }
     if(!/^(\+27|0)[0-9]{9}$/.test(phone)) throw new Error("Please type a valid cell number, for example 081 234 5678.");
     if(!email) throw new Error("Please type your email address.");
-    if(password.length<6) throw new Error("The password must be at least 6 characters.");
+    if(password.length<8) throw new Error("The password must be at least 8 characters.");
     if(!f.sagree) throw new Error("Please tick the box to say you have read the privacy note.");
     tsCheck();
     const r=await sb("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password,data:{name:f.sname.trim(),surname:f.ssurname.trim(),area:areaName,phone,terms_version:LEGAL_VERSION,...extra},...tsMeta()})});
@@ -1063,7 +1063,7 @@ async function doRecover(){
 }
 async function doSetPw(){
   const pw=document.getElementById("pw").value, pw2=document.getElementById("pw2").value;
-  if(pw.length<6){authMsg="The password must be at least 6 characters.";render();return;}
+  if(pw.length<8){authMsg="The password must be at least 8 characters.";render();return;}
   if(pw!==pw2){authMsg="The two passwords are not the same.";render();return;}
   try{ await sb("/auth/v1/user",{method:"PUT",headers:{Authorization:"Bearer "+recoveryToken},body:JSON.stringify({password:pw})});
     recoveryToken=null; authView="login"; authMsg="Password changed. Log in with your new password."; }
@@ -1084,7 +1084,7 @@ async function restore(){
 
 function loginScreen(){
   return `<div class="card"><h2>Log in</h2>
-  ${authMsg?`<div class="banner ${/^(Account created|Password changed|If that email)/.test(authMsg)?"ok":"bad"}">${authMsg}</div>`:""}
+  ${authMsg?`<div class="banner ${/^(Account created|Password changed|If that email)/.test(authMsg)?"ok":"bad"}">${esc(authMsg)}</div>`:""}
   <label for="uid">Email address</label>
   <input id="uid" type="email" autocomplete="username">
   <label for="pw">Password</label>
@@ -1113,7 +1113,7 @@ function signupScreen(){
     <p style="margin:8px 0 0">Your cell number is private. It is never shown to shops, drivers or other customers: you talk to them through messages and voice notes in the app. If you report a chat, the last 30 messages of that chat are sent to the admin.${ST.form.sacct==="driver"?" Once you are approved, customers see your name, face photo, car photo and vehicle details. Your cell number, ID number and ID photo are only seen by the admin.":""} We keep your details safely, and you can ask us to delete them.</p></details>
   <p style="margin:8px 0 0"><button type="button" class="sm" data-legal="open">Read the full privacy policy and terms</button></p>
   ${fld("semail","Email address","","email")}
-  <label for="spw">Create a password</label><input id="spw" type="password" autocomplete="new-password" value="${esc(ST.form.spwv||"")}" placeholder="At least 6 characters">
+  <label for="spw">Create a password</label><input id="spw" type="password" autocomplete="new-password" value="${esc(ST.form.spwv||"")}" placeholder="At least 8 characters">
   <label class="chk"><input type="checkbox" data-a="chk" data-k="sagree" ${ST.form.sagree?"checked":""}><span>${ST.form.sacct==="driver"?"I have read the privacy policy and terms. I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.":"I have read the privacy policy and terms, and I agree."}</span></label>
   ${tsBox()}
   <button class="btn" data-a="signup">Create account</button>
@@ -1121,7 +1121,7 @@ function signupScreen(){
 }
 function forgotScreen(){
   return `<div class="card"><h2>Reset your password</h2><p class="sub">Type your email address and we will send you a link.</p>
-  ${authMsg?`<div class="banner bad">${authMsg}</div>`:""}
+  ${authMsg?`<div class="banner bad">${esc(authMsg)}</div>`:""}
   <label for="uid">Email address</label><input id="uid" type="email" autocomplete="username">
   ${tsBox()}
   <button class="btn" data-a="sendreset">Send reset link</button>
@@ -1129,7 +1129,7 @@ function forgotScreen(){
 }
 function resetScreen(){
   return `<div class="card"><h2>Choose a new password</h2>
-  ${authMsg?`<div class="banner bad">${authMsg}</div>`:""}
+  ${authMsg?`<div class="banner bad">${esc(authMsg)}</div>`:""}
   <label for="pw">New password</label><input id="pw" type="password" autocomplete="new-password">
   <label for="pw2">Type it again</label><input id="pw2" type="password" autocomplete="new-password">
   <button class="btn" data-a="setpw">Save new password</button></div>`;

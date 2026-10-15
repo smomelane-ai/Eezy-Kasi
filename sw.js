@@ -1,6 +1,6 @@
 // Service worker for Inanda Business Web.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v64";
+const VERSION = "inanda-v65";
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
@@ -65,8 +65,7 @@ self.addEventListener("fetch", e => {
 
   if (r.mode === "navigate") {                                // the app page: network first, saved copy offline
     e.respondWith(fetch(r).then(res => {
-      const copy = res.clone();
-      caches.open(VERSION).then(c => c.put("index.html", copy));
+      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put("index.html", copy)); }   // never save an error page as the offline copy
       return res;
     }).catch(() => caches.match("index.html")));
     return;
