@@ -421,7 +421,7 @@ function food(){
   const hist=mine?`<div class="card"><h2>Your orders</h2>${mine}</div>`:"";
   if(!ST.shop){
     const cat=CATS[cview]||CATS.food;
-    const list=ST.shops.filter(s=>(s.category||"food")===cat.k).map(s=>`<div class="row"><b>${esc(s.name)}</b><span><button class="sm" data-a="chatwith" data-v="${s.owner_id}">Message</button> <button class="sm" data-a="shop" data-id="${s.id}">Order</button></span></div>`).join("");
+    const list=ST.shops.filter(s=>(s.category||"food")===cat.k).map(s=>`<div class="row"><b>${esc(s.name)}</b><span><button class="sm" data-a="chatwith" data-v="${s.owner_id}">Message</button> <button class="sm" data-a="callback" data-v="${s.owner_id}" data-n="${esc(s.name)}">📞 Call me back</button> <button class="sm" data-a="shop" data-id="${s.id}">Order</button></span></div>`).join("");
     return `<h1>${esc(cat.l)} in ${esc(loc)}</h1><p class="sub">You pay cash when your order arrives.</p>${msgs()}<div class="card">${list||"<small>No "+esc(cat.l.toLowerCase())+" businesses are open in this area yet.</small>"}</div>${hist}`;
   }
   const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&!!ST.pickup, pr=i=>pick?(i.pickup_price_cents||i.shop_price_cents):i.app_price_cents;
@@ -627,7 +627,7 @@ function driveTab(){
     if(t.status==="open"&&t.ride_type==="car") body='<div class="note">Waiting for a car driver to accept. Your fixed price is <b>'+R(t.price_cents)+'</b> ('+esc(t.distance_km)+' km). You will hear a sound when a driver accepts.</div>';
     else if(t.status==="open") body=offs.length?offs.map(o=>{const ok=t.budget_cents&&o.price_cents<=t.budget_cents;
       return `<div class="note">${person(o.drivers||{})}<div class="row"><b>${R(o.price_cents)}</b>${ok?'<span class="tag ok">Within your budget</span>':""}</div><button class="sm" data-a="chatwith" data-v="${o.driver_id}">Message driver</button><button class="btn" data-a="choose" data-id="${t.id}" data-v="${o.driver_id}">Choose this driver</button></div>`}).join(""):'<div class="note">No driver has accepted yet. Tap Refresh in a little while.</div>';
-    else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>Pay the driver in cash</span><b>${R(t.price_cents)}</b></div><p style="margin:6px 0"><small>The driver will text or send you a voice note in Messages.</small></p><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button></div>`;
+    else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>Pay the driver in cash</span><b>${R(t.price_cents)}</b></div><p style="margin:6px 0"><small>The driver will text or send you a voice note in Messages.</small></p><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button>${t.ride_type!=="car"&&(t.status==="accepted"||t.status==="started")?` <button class="sm" data-a="callback" data-k="driver" data-v="${chosen.driver_id}" data-n="${esc((chosen.drivers||{}).full_name||"your driver")}">📞 Call me back</button>`:""}</div>`;
     if(t.status==="accepted"&&t.ride_type==="car"&&ST.pins&&ST.pins[t.id]) body+=`<div class="card" style="text-align:center;border:2px solid var(--brand,#0a7)"><small>Your trip PIN</small><div style="font-size:40px;font-weight:800;letter-spacing:10px;margin:4px 0">${esc(ST.pins[t.id])}</div><small>Check the car and the driver's photo, then give the driver this PIN when you get in. The trip cannot start without it. Never send it by message.</small></div>`;
     if(t.status==="completed"&&t.ride_type==="car"&&chosen&&!(ST.favs||[]).some(d=>d.id===chosen.driver_id)) body+=`<button class="btn ghost" data-a="favon" data-v="${esc(chosen.driver_id)}">Save ${esc((chosen.drivers||{}).full_name||"this driver")} as my regular driver</button>`;
     const act=(t.status==="accepted"||t.status==="started")?`<button class="btn" data-a="arrived" data-id="${t.id}">I have arrived safely</button>`:"";
@@ -640,7 +640,7 @@ function reqForm(){
   ${placeSel("rfrom","From")}${placeSel("rto","To")}${sel("goods","What are we moving?",GOODS)}
   ${fld("desc","Short description","e.g. 2-seater couch and a fridge")}${fld("budget","Your budget in rand (optional)","e.g. 150","number")}
   ${fld("pickup","Pick-up address","Only the driver you choose will see this")}${fld("when","When?","e.g. Saturday morning")}
-  <div class="note">The driver will text or send you a voice note in Messages. Cell numbers are never shared between customers and drivers.</div>
+  <div class="note">The driver will text or send you a voice note in Messages. Cell numbers stay private unless you choose to share yours for a call back, after you have chosen a driver.</div>
   <button class="btn" data-a="sendreq">Find drivers</button><button class="btn ghost" data-a="noreq">Back</button></div>`;
 }
 function applyScreen(){
@@ -1121,7 +1121,7 @@ function signupScreen(){
   ${ST.form.sacct==="driver"?drvFields():""}
   ${fld("sphone","Cell number","e.g. 081 234 5678","tel")}
   <details class="privnote" open><summary>Privacy note: how we use your cell number</summary>
-    <p style="margin:8px 0 0">Your cell number is private. It is never shown to shops, drivers or other customers: you talk to them through messages and voice notes in the app. If you report a chat, the last 30 messages of that chat are sent to the admin.${ST.form.sacct==="driver"?" Once you are approved, customers see your name, face photo, car photo and vehicle details. Your cell number, ID number and ID photo are only seen by the admin.":""} We keep your details safely, and you can ask us to delete them.</p></details>
+    <p style="margin:8px 0 0">Your cell number is private. It is never shown to shops, drivers or other customers: you talk to them through messages and voice notes in the app. The only exception is when you tap Call me back on a business, or on a bakkie or truck driver you have chosen, and confirm: then your number is sent to that one business or driver only. If you report a chat, the last 30 messages of that chat are sent to the admin.${ST.form.sacct==="driver"?" Once you are approved, customers see your name, face photo, car photo and vehicle details. Your cell number, ID number and ID photo are only seen by the admin.":""} We keep your details safely, and you can ask us to delete them.</p></details>
   <p style="margin:8px 0 0"><button type="button" class="sm" data-legal="open">Read the full privacy policy and terms</button></p>
   ${fld("semail","Email address","","email")}
   <label for="spw">Create a password</label><input id="spw" type="password" autocomplete="new-password" value="${esc(ST.form.spwv||"")}" placeholder="At least 8 characters">
@@ -1285,6 +1285,14 @@ const H={
   delroute:(el,id)=>go(async()=>{await sb("/rest/v1/driver_routes?id=eq."+id,{method:"DELETE",headers:{Prefer:"return=minimal"}});await loadDriver();}),
   xtab:el=>go(async()=>{xtab=el.dataset.v; ST.thread=null; ST.msgs=[]; if(xtab==="msgs") await loadChats();}),
   chatwith:el=>go(async()=>{ await openChat(await rpc("start_chat",{p_other:el.dataset.v})); }),
+  callback:el=>go(async()=>{
+    const drv=el.dataset.k==="driver", ph=((ST.profile&&ST.profile.phone)||"").trim(), nm=el.dataset.n||(drv?"your driver":"this business");
+    if(!ph) throw new Error("Please add your cell number to your account first.");
+    if(!confirm("Share your cell number ("+ph+") with "+nm+" so they can call you back?\n\nOnly this "+(drv?"driver":"business")+" will see it, in your chat. Tap OK to send.")) return;
+    const id=await rpc("start_chat",{p_other:el.dataset.v});
+    await rpc("send_message",{p_thread:id,p_body:"📞 Please call me back on "+ph+". I chose to share my number for this call."});
+    await openChat(id); ST.note="Sent. "+nm+" can now call you back. You will also see their reply in Messages.";
+  }),
   support:()=>go(async()=>{ await openChat(await rpc("support_chat",{})); }),
   openchat:(el,id)=>go(()=>openChat(id)),
   closechat:()=>go(async()=>{ ST.reporting=false; ST.thread=null; ST.msgs=[]; ST.threadWith=null; await loadChats(); }),
@@ -1442,7 +1450,7 @@ function wishAdd(){
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
 const LEGAL_VERSION="policy-2026-10-14b";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
-<p class="sub" style="margin:0 0 12px">Last updated: 14 October 2026.</p>
+<p class="sub" style="margin:0 0 12px">Last updated: 15 October 2026.</p>
 <h3>Who we are</h3>
 <p>Inanda Business Web (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Inanda Business Web is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
 <p>Our address: 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310.</p>
@@ -1467,7 +1475,8 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p>To run your account, deliver orders, match transport requests with drivers, check that drivers and businesses are real before they go live, keep the app safe, handle reports and complaints, show the work of businesses to customers, and contact you about your account. We do not sell your information, and we do not send marketing without your permission.</p>
 <h3>Who can see what</h3>
 <ul>
-<li>Cell numbers are not shared between customers and drivers. They talk to each other through messages and voice notes in the app.</li>
+<li>Cell numbers are not shared between customers and drivers, except when a customer chooses to share theirs for a goods trip (see below). They talk to each other through messages and voice notes in the app. A driver's cell number is never shared with customers.</li>
+<li>If you tap Call me back or Ask for a call back on a shop or business, and then confirm, your cell number is sent in that chat to that business only, so they can phone you. The same applies to a bakkie or truck driver you have chosen for a goods trip: your number goes to that one driver only, after you confirm. We never send it without your confirmation, and it is not available for car rides.</li>
 <li>If you ask for your regular driver first, only that driver sees the ride for the first 60 seconds. After that, all car drivers nearby can see it.</li>
 <li>While a car ride is waiting, car drivers who are online within a few kilometres of the pick-up can see its pick-up and drop-off places, the distance and the price.</li>
 <li>A driver’s name, face photo, car photo and vehicle details are shown to customers once the driver is approved.</li>
@@ -2484,7 +2493,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
   function bizPage() {
     const b = ST.biz, pl = placesOf(b);
     return '<button class="sm" data-a="bizback">← All construction</button><h1>' + esc(b.name) + '</h1><div class="row"><span class="tag">' + esc(b.trade || "Construction") + "</span></div>" + msgs() +
-      '<div class="card"><b>Places they work in</b><p style="margin:6px 0 10px">' + (pl.length ? esc(pl.join(", ")) : "Not listed yet.") + '</p><button class="btn" data-a="chatwith" data-v="' + esc(b.owner_id) + '">Message</button><small>You talk in the app. Cell numbers are never shared.</small></div>' +
+      '<div class="card"><b>Places they work in</b><p style="margin:6px 0 10px">' + (pl.length ? esc(pl.join(", ")) : "Not listed yet.") + '</p><button class="btn" data-a="chatwith" data-v="' + esc(b.owner_id) + '">Message</button><button class="btn ghost" data-a="callback" data-v="' + esc(b.owner_id) + '" data-n="' + esc(b.name || b.business_name || "this business") + '">📞 Ask for a call back</button><small>You talk in the app. Your cell number is only shared if you tap Ask for a call back and confirm.</small></div>' +
       '<div class="card"><b>Need materials moved?</b><p style="margin:6px 0 10px">Book a bakkie driver from this business to your site.</p><button class="btn ghost" data-a="bizdrive">Book a driver for materials</button></div>' +
       (((ST.gal || []).length && window.__galleryHtml) ? window.__galleryHtml() : '<div class="card"><small>No photos of their work yet.</small></div>');
   }
