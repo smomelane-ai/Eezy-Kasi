@@ -973,6 +973,7 @@ async function afterLogin(s){
   const status=(p&&p[0]&&p[0].status)||"approved"; prevUnread=null; seenOrders=null; seenReqs=null; user={tab:(status!=="approved"&&role!=="admin")?"pend":{customer:"cust",owner:"own",admin:"adm",driver:"drv"}[role]}; cview="home"; tab=user.tab; ownView="due"; xtab=role==="driver"?"req":"main"; loc=null; locId=null; authMsg=""; ST.profile=(p&&p[0])||{}; if(ST.profile.phone) ST.form.phone=ST.form.phone||ST.profile.phone;
   try{ await loadAreas(); const ar=ST.areas.find(x=>x.name===ST.profile.area_name); if(role==="customer"&&ar){ loc=ar.name; locId=ar.id; } if(user.tab==="pend") await loadPending(); else if(role==="owner") await loadOwner(); else if(role==="admin") { await loadAdmin(); await loadFeed(); } else if(role==="driver") await loadDriver(); else { await loadCust(); await loadMe(); await loadFeed(); } try{ if(user.tab!=="pend") await loadChats(); }catch(e){} }catch(e){ ST.err=e.message; }
   seenOrders=(ST.orders||[]).filter(o=>o.status==="placed").map(o=>o.id); seenReqs=(ST.openReqs||[]).concat(ST.rides||[]).map(r=>r.id);
+  try{ if(ST.profile&&ST.profile.requested_role==="driver"&&!ST.me&&!ST.err){ if(user.tab==="cust") cview="apply"; ST.note="Welcome! One more step: send your vehicle details and photos so we can approve you as a driver."; } }catch(e){}
   if(role!=="customer") loadBank();
 }
 async function loadBank(){
@@ -987,8 +988,11 @@ async function saveBank(k,v){
 }
 async function doLogin(){
   const email=document.getElementById("uid").value.trim(), password=document.getElementById("pw").value;
-  try{ tsCheck(); await afterLogin(await sb("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email,password,...tsMeta()})})); }
-  catch(e){ authMsg=friendlyAuth(e.message); }
+  try{ tsCheck(); showResend=false; await afterLogin(await sb("/auth/v1/token?grant_type=password",{method:"POST",body:JSON.stringify({email,password,...tsMeta()})})); }
+  catch(e){
+    if(/email.{0,3}not.{0,3}confirmed/i.test(e.message)){ pendingEmail=email; showResend=true; authMsg="Your email is not confirmed yet. Open the email we sent you and tap the link, then log in again. Look in your Spam or Junk folder too."; }
+    else authMsg=friendlyAuth(e.message);
+  }
   render();
 }
 let LASTERR="";
@@ -1000,6 +1004,7 @@ function troubleBlock(){
 function friendlyAuth(m){
   m=String(m||"");
   if(/already (been )?registered|user_already_exists|already exists/i.test(m)) return "That email already has an account. Tap Back to log in and log in. If you forgot your password, tap Forgot password?";
+  if(/only request this once|for security purposes|after \d+ seconds/i.test(m)) return "Please wait a minute, then tap the button again.";
   if(/rate limit|too many requests|over_email_send_rate_limit/i.test(m)) return "Too many people are signing up right now. Please wait a few minutes and try again. If it keeps happening, tap Having trouble? below.";
   if(/failed to fetch|networkerror|load failed/i.test(m)) return "No internet connection. Check your data or Wi-Fi and try again.";
   return m;
@@ -1035,7 +1040,7 @@ async function doSignup(){
     if(password.length<8) throw new Error("The password must be at least 8 characters.");
     if(!f.sagree) throw new Error("Please tick the box to say you have read the privacy note.");
     tsCheck();
-    const r=await sb("/auth/v1/signup",{method:"POST",body:JSON.stringify({email,password,data:{name:f.sname.trim(),surname:f.ssurname.trim(),area:areaName,phone,terms_version:LEGAL_VERSION,...extra},...tsMeta()})});
+    const r=await sb("/auth/v1/signup?redirect_to="+encodeURIComponent(location.origin+location.pathname),{method:"POST",body:JSON.stringify({email,password,data:{name:f.sname.trim(),surname:f.ssurname.trim(),area:areaName,phone,terms_version:LEGAL_VERSION,...extra},...tsMeta()})});
     if(r&&r.access_token){
       const photo=phf&&phf[0], idfile=idf&&idf[0], carfile=carf&&carf[0];
       await afterLogin(r); f.spwv="";
@@ -1047,12 +1052,16 @@ async function doSignup(){
           await loadMe(); ST.note="Application sent. We will check your details and approve you.";
         }catch(e){ ST.err="Your account was created, but we could not send your vehicle details ("+e.message+"). Send them again from the form on this screen (or tap Become a driver)."; }
       }
-    }else{ authMsg="Account created. Check your email to confirm it, then log in."+(biz?" Your business will be checked before it goes live.":"")+(drv?" After you log in, tap Become a driver to send your vehicle details.":""); authView="login"; }
+    }else{
+      const u=r&&(r.user||r);   // an email that already has an account comes back with no identities and no email is sent
+      if(u&&Array.isArray(u.identities)&&u.identities.length===0){ authMsg="That email already has an account. Log in. If you forgot your password, tap Forgot password?"; authView="login"; showResend=false; }
+      else { pendingEmail=email; pendingRole=t; showResend=false; authMsg=""; authView="check"; f.spwv=""; }
+    }
   }catch(e){ authMsg=friendlyAuth(e.message); }
   render();
   if(authMsg||ST.err) window.scrollTo({top:0,behavior:"smooth"});
 }
-let authView="login", recoveryToken=null;
+let authView="login", recoveryToken=null, pendingEmail="", pendingRole="customer", showResend=false;
 async function doRecover(){
   const email=document.getElementById("uid").value.trim();
   if(!email){authMsg="Type your email address first.";render();return;}
@@ -1073,7 +1082,8 @@ async function doSetPw(){
 (function(){ // arriving from the reset email link
   const h=new URLSearchParams(location.hash.slice(1));
   if(h.get("type")==="recovery"&&h.get("access_token")){ recoveryToken=h.get("access_token"); authView="reset"; history.replaceState(null,"",location.pathname); }
-  else if(h.get("error_description")){ authMsg="That link has expired. Ask for a new reset link."; history.replaceState(null,"",location.pathname); }
+  else if(h.get("type")==="signup"&&h.get("access_token")){ authMsg="Your email is confirmed. Log in to continue."; history.replaceState(null,"",location.pathname); }
+  else if(h.get("error_description")){ authMsg="That link has expired or was already used. Type your email below, then tap Send the confirmation email again. If you forgot your password, tap Forgot password?"; showResend=true; history.replaceState(null,"",location.pathname); }
 })();
 async function restore(){
   try{ const s=JSON.parse(localStorage.getItem("inanda_sess")||"null"); if(!s) return;
@@ -1084,13 +1094,14 @@ async function restore(){
 
 function loginScreen(){
   return `<div class="card"><h2>Log in</h2>
-  ${authMsg?`<div class="banner ${/^(Account created|Password changed|If that email)/.test(authMsg)?"ok":"bad"}">${esc(authMsg)}</div>`:""}
+  ${authMsg?`<div class="banner ${/^(Account created|Password changed|If that email|We sent the email again|Your email is confirmed)/.test(authMsg)?"ok":"bad"}">${esc(authMsg)}</div>`:""}
   <label for="uid">Email address</label>
   <input id="uid" type="email" autocomplete="username">
   <label for="pw">Password</label>
   <input id="pw" type="password" autocomplete="current-password">
   ${tsBox()}
   <button class="btn" data-a="login">Log in</button>
+  ${showResend?'<button class="btn" data-a="resend">Send the confirmation email again</button>':""}
   <button class="btn ghost" data-a="tosignup">Create account</button>
   <button class="sm" style="margin-top:12px" data-a="forgot">Forgot password?</button>
   <div class="note">Shop owners and admin get their access from Inanda Business Web. Log in with the email you were given.</div></div>${troubleBlock()}`;
@@ -1119,6 +1130,25 @@ function signupScreen(){
   <button class="btn" data-a="signup">Create account</button>
   <button class="btn ghost" data-a="tologin">Back to log in</button></div>${troubleBlock()}`;
 }
+function checkScreen(){
+  const extra=pendingRole==="owner"?" After you confirm and log in, your business will be checked before it goes live.":pendingRole==="driver"?" After you confirm and log in, the driver form opens so you can send your vehicle details and photos.":"";
+  return `<div class="card"><h2>Check your email</h2>
+  <div class="banner ok"><strong>We sent a link to ${esc(pendingEmail)}</strong>Open the email and tap the link to confirm your account. It comes from noreply@inandabusiness.co.za. If you do not see it in a few minutes, look in your Spam or Junk folder.${esc(extra)}</div>
+  ${authMsg?`<div class="banner ${/^We sent the email again/.test(authMsg)?"ok":"bad"}">${esc(authMsg)}</div>`:""}
+  <p class="sub">Wrong email address? Tap Back to sign up and start again.</p>
+  ${tsBox()}
+  <button class="btn" data-a="resend">Send the email again</button>
+  <button class="btn ghost" data-a="tologin">I have confirmed my email. Log in</button>
+  <button class="sm" style="margin-top:12px" data-a="tosignup">Back to sign up</button></div>${troubleBlock()}`;
+}
+async function doResend(){
+  const box=document.getElementById("uid"), email=((box&&box.value)||pendingEmail||"").trim();
+  if(!email){ authMsg="Type your email address first."; render(); return; }
+  try{ tsCheck(); await sb("/auth/v1/resend?redirect_to="+encodeURIComponent(location.origin+location.pathname),{method:"POST",body:JSON.stringify({type:"signup",email,...tsMeta()})});
+    pendingEmail=email; authMsg="We sent the email again. Open it and tap the link. Look in your Spam or Junk folder too."; }
+  catch(e){ authMsg=friendlyAuth(e.message); }
+  render();
+}
 function forgotScreen(){
   return `<div class="card"><h2>Reset your password</h2><p class="sub">Type your email address and we will send you a link.</p>
   ${authMsg?`<div class="banner bad">${esc(authMsg)}</div>`:""}
@@ -1139,15 +1169,15 @@ function areaScreen(){
   return `<h1>Where should we deliver?</h1><p class="sub">Pick your area in Inanda.</p>${msgs()}<div class="areas">${list||"<small>Could not load the areas. Tap Refresh.</small>"}</div>`;
 }
 function render(){
-  try{ if(ST.err) LASTERR=ST.err; else if(authMsg&&!/^(Account created|Password changed|If that email)/.test(authMsg)) LASTERR=authMsg; }catch(e){}
+  try{ if(ST.err) LASTERR=ST.err; else if(authMsg&&!/^(Account created|Password changed|If that email|We sent the email again|Your email is confirmed)/.test(authMsg)) LASTERR=authMsg; }catch(e){}
   const cust=user&&user.tab==="cust";
   document.getElementById("bar").innerHTML = user?`<span><b style="display:inline-block;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${esc(dispName())}</b>${cust&&loc?" · "+esc(loc):""}</span><span>${cust&&loc?'<button class="sm" data-a="area">Change area</button> ':''}<button class="sm" data-a="sndtoggle" aria-label="Message sound on or off">${soundOn?"🔔":"🔕"}</button> <button class="sm" data-a="refresh">Refresh</button> <button class="sm" data-a="logout">Log out</button></span>`:"";
-  document.getElementById("app").innerHTML = !user?(authView==="forgot"?forgotScreen():authView==="reset"?resetScreen():authView==="signup"?signupScreen():loginScreen()):tab==="pend"?pendingScreen():tab==="cust"?customer():msgTabs()+(xtab==="msgs"?messagesScreen():tab==="own"?owner():tab==="drv"?driver():admin());
+  document.getElementById("app").innerHTML = !user?(authView==="forgot"?forgotScreen():authView==="reset"?resetScreen():authView==="signup"?signupScreen():authView==="check"?checkScreen():loginScreen()):tab==="pend"?pendingScreen():tab==="cust"?customer():msgTabs()+(xtab==="msgs"?messagesScreen():tab==="own"?owner():tab==="drv"?driver():admin());
   if(!user) tsMount(); wishVis(); mountRideMap(); restoreFiles();
 }
 const patchShop=(id,body)=>sb("/rest/v1/shops?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(body)});
 const H={
-  login:doLogin, signup:doSignup, sendreset:doRecover, setpw:doSetPw,
+  login:doLogin, signup:doSignup, sendreset:doRecover, setpw:doSetPw, resend:doResend,
   reloadareas:()=>{ snapForm(); loadAreas().then(()=>render()).catch(()=>{ authMsg="Could not load the locations. Check your internet and try again."; render(); }); },
   sndtoggle:()=>{ soundOn=!soundOn; try{ localStorage.setItem("inanda_snd",soundOn?"1":"0"); }catch(e){} if(soundOn){ unlockAudio(); ding(); } },
   reportopen:()=>{ ST.reporting=true; }, reportcancel:()=>{ ST.reporting=false; },
@@ -1159,7 +1189,7 @@ const H={
   msusp:el=>{ if(!confirm("Suspend this person? They will not be able to log in.")) return; return go(async()=>{ await rpc("suspend_member",{p_user:el.dataset.v}); await loadAdmin(); ST.note="Suspended."; }); },
   mreact:el=>go(async()=>{ await rpc("reactivate_member",{p_user:el.dataset.v}); await loadAdmin(); ST.note="Reactivated."; }),
   rclose:(el,id)=>go(async()=>{ await rpc("resolve_report",{p_report:id}); await loadAdmin(); }),
-  forgot:()=>{authView="forgot";authMsg="";}, tosignup:()=>{authView="signup";authMsg="";if(!ST.areas.length) loadAreas().then(()=>render()).catch(()=>{});}, tologin:()=>{authView="login";authMsg="";},
+  forgot:()=>{authView="forgot";authMsg="";}, tosignup:()=>{authView="signup";authMsg="";if(!ST.areas.length) loadAreas().then(()=>render()).catch(()=>{});}, tologin:()=>{authView="login";authMsg="";showResend=false;},
   logout:()=>{clearFiles(); try{ if(sess&&sess.access_token) fetch(SB_URL+"/auth/v1/logout?scope=local",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+sess.access_token}}).catch(()=>{}); }catch(e){} const keep=ST.areas; user=null;loc=null;locId=null;sess=null;BANK=null;ST=blank();ST.areas=keep;prevUnread=null;seenOrders=null;seenReqs=null;authView="login";localStorage.removeItem("inanda_sess");},
   area:()=>{loc=null;locId=null;ST.shop=null;},
   loc:el=>go(async()=>{loc=el.dataset.v;locId=+el.dataset.id;ST.shop=null;await loadCust();}),
