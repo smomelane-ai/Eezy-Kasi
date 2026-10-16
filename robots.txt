@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://inandabusiness.co.za/sitemap.xml

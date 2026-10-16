@@ -1,6 +1,6 @@
 // Service worker for Inanda Business Web.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v73";
+const VERSION = "inanda-v74";
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
@@ -63,6 +63,7 @@ self.addEventListener("fetch", e => {
     return;                                                   // everything else on Supabase (logins, orders, payments) is never cached
   }
 
+  if (r.mode === "navigate" && !/\/(index\.html)?$/.test(u.pathname)) return;   // other pages (about.html, robots.txt, sitemap.xml) go straight to the network and never replace the offline app copy
   if (r.mode === "navigate") {                                // the app page: network first, saved copy offline
     e.respondWith(fetch(r).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put("index.html", copy)); }   // never save an error page as the offline copy
