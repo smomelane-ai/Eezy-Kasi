@@ -214,6 +214,8 @@ main{padding-bottom:84px}
 <script>
 const R = c => "R" + (c/100).toFixed(2);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Shop delivery switch. Keep false until the shop owners give the go-ahead, then change it to true.
+const DELIVERY_ON=false;
 let tab="cust", ownView="due", cancelling=null, user=null, loc=null, locId=null;
 const dispName=()=>{ const p=ST.profile||{}, n=((p.name||"")+" "+(p.surname||"")).trim(); if(n) return n; if(ST.shop&&ST.shop.name) return ST.shop.name; if(ST.me&&ST.me.full_name) return ST.me.full_name; return ROLES[user.tab]||""; };
 const ROLES={cust:"Customer",own:"Shop owner",adm:"Admin",drv:"Driver",pend:"Your account"};
@@ -422,19 +424,19 @@ function food(){
   if(!ST.shop){
     const cat=CATS[cview]||CATS.food;
     const list=ST.shops.filter(s=>(s.category||"food")===cat.k).map(s=>`<div class="row"><b>${esc(s.name)}</b><span><button class="sm" data-a="chatwith" data-v="${s.owner_id}">Message</button> <button class="sm" data-a="callback" data-v="${s.owner_id}" data-n="${esc(s.name)}">📞 Call me back</button> <button class="sm" data-a="shop" data-id="${s.id}">Order</button></span></div>`).join("");
-    return `<h1>${esc(cat.l)} in ${esc(loc)}</h1><p class="sub">You pay cash when your order arrives.</p>${msgs()}<div class="card">${list||"<small>No "+esc(cat.l.toLowerCase())+" businesses are open in this area yet.</small>"}</div>${hist}`;
+    return `<h1>${esc(cat.l)} in ${esc(loc)}</h1><p class="sub">${DELIVERY_ON?"You pay cash when your order arrives.":(cat.k==="food"?"Delivery is paused for now. Pick up at the shop and pay cash when you collect.":"Delivery is paused for now. Message the shop to arrange.")}</p>${msgs()}<div class="card">${list||"<small>No "+esc(cat.l.toLowerCase())+" businesses are open in this area yet.</small>"}</div>${hist}`;
   }
-  const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&!!ST.pickup, pr=i=>pick?(i.pickup_price_cents||i.shop_price_cents):i.app_price_cents;
+  const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&(DELIVERY_ON?!!ST.pickup:true), pr=i=>pick?(i.pickup_price_cents||i.shop_price_cents):i.app_price_cents;
   const total=ST.menu.reduce((a,i)=>a+(ST.cart[i.id]||0)*pr(i),0);
   const cur=ST.item?ST.menu.find(x=>x.id===ST.item):null; if(cur) return itemDetail(cur,pr,total); if(ST.item) ST.item=null;
   const items=menuTabs()+menuGrid(pr);
   const gal=(ST.posts&&ST.posts.length)?`<h2>${cview==="beauty"?"Recent work":"Menu and pictures"}</h2>${ST.posts.map(x=>postCard(x)).join("")}`:"", top=cview==="beauty"?gal:"", bottom=cview==="beauty"?"":gal;
-  return `<h1>${esc(ST.shop.name)}</h1><p class="sub">${pick?"Pick up at the shop. You pay cash when you collect.":"Delivered in "+esc(loc)+". You pay cash when it arrives."}</p>${msgs()}${top}
-  <div class="card">${canPick?`<div class="seg" role="tablist"><button role="tab" aria-checked="${!pick}" data-a="pmode" data-v="deliver">Delivery</button><button role="tab" aria-checked="${pick}" data-a="pmode" data-v="pickup">Pick up</button></div>`:""}${items||"<small>No items on the menu yet.</small>"}
-    ${pick?`<div class="note">You collect your order at <b>${esc(ST.shop.name)}</b> and pay cash there. Pick up prices include a small app fee.</div>`:`<label for="addr">Delivery address</label>
-    <input id="addr" type="text" style="width:100%" value="${esc(ST.address)}" data-a="addr" placeholder="House number and street">`}
+  return `<h1>${esc(ST.shop.name)}</h1><p class="sub">${pick?(DELIVERY_ON?"Pick up at the shop. You pay cash when you collect.":"Delivery is not available yet. Pick up at the shop and pay cash when you collect."):(DELIVERY_ON?"Delivered in "+esc(loc)+". You pay cash when it arrives.":"Delivery is paused for now. Message the shop to arrange your order.")}</p>${msgs()}${top}
+  <div class="card">${(canPick&&DELIVERY_ON)?`<div class="seg" role="tablist"><button role="tab" aria-checked="${!pick}" data-a="pmode" data-v="deliver">Delivery</button><button role="tab" aria-checked="${pick}" data-a="pmode" data-v="pickup">Pick up</button></div>`:""}${items||"<small>No items on the menu yet.</small>"}
+    ${pick?`<div class="note">You collect your order at <b>${esc(ST.shop.name)}</b> and pay cash there. Pick up prices include a small app fee.</div>`:(DELIVERY_ON?`<label for="addr">Delivery address</label>
+    <input id="addr" type="text" style="width:100%" value="${esc(ST.address)}" data-a="addr" placeholder="House number and street">`:`<div class="note">Delivery is paused for now. Tap Messages to talk to the shop.</div>`)}
     <div class="row"><b>${pick?"Pay cash at pick-up":"Pay cash on delivery"}</b><b>${R(total)}</b></div>
-    <button class="btn" data-a="order" ${total?"":"disabled"}>Place order</button>
+    <button class="btn" data-a="order" ${(total&&(DELIVERY_ON||pick))?"":"disabled"}>Place order</button>
     <button class="btn ghost" data-a="shops">Back to shops</button></div>${bottom}${hist}`;
 }
 const fld=(k,l,ph="",t="text")=>`<label for="f_${k}">${l}</label><input id="f_${k}" type="${t}" style="width:100%" value="${esc(ST.form[k]||"")}" data-a="form" data-k="${k}" placeholder="${ph}">`;
@@ -1166,7 +1168,7 @@ function resetScreen(){
 }
 function areaScreen(){
   const list=ST.areas.map(a=>`<button data-a="loc" data-id="${a.id}" data-v="${esc(a.name)}">${esc(a.name)}</button>`).join("");
-  return `<h1>Where should we deliver?</h1><p class="sub">Pick your area in Inanda.</p>${msgs()}<div class="areas">${list||"<small>Could not load the areas. Tap Refresh.</small>"}</div>`;
+  return `<h1>${DELIVERY_ON?"Where should we deliver?":"Which area are you in?"}</h1><p class="sub">Pick your area in Inanda.</p>${msgs()}<div class="areas">${list||"<small>Could not load the areas. Tap Refresh.</small>"}</div>`;
 }
 function render(){
   try{ if(ST.err) LASTERR=ST.err; else if(authMsg&&!/^(Account created|Password changed|If that email|We sent the email again|Your email is confirmed)/.test(authMsg)) LASTERR=authMsg; }catch(e){}
@@ -1200,7 +1202,8 @@ const H={
   inc:(el,id)=>{ST.cart[id]=(ST.cart[id]||0)+1;}, dec:(el,id)=>{ST.cart[id]=Math.max(0,(ST.cart[id]||0)-1);},
   order:()=>go(async()=>{
     const items=ST.menu.filter(i=>ST.cart[i.id]).map(i=>({menu_item_id:i.id,quantity:ST.cart[i.id]}));
-    const pick=!!ST.pickup&&(ST.shop.category||"food")==="food"&&cview==="food";
+    const pick=(DELIVERY_ON?!!ST.pickup:true)&&(ST.shop.category||"food")==="food"&&cview==="food";
+    if(!DELIVERY_ON&&!pick) throw new Error("Delivery is paused for now. Please message the shop to arrange your order.");
     const args={p_shop_id:ST.shop.id,p_address:pick?"":ST.address,p_items:items}; if(pick) args.p_pickup=true;
     const n=await rpc("place_order",args);
     ST.cart={}; ST.note=pick?"Order #"+n+" placed. Collect it at the shop and pay cash there.":"Order #"+n+" placed. Pay cash when it arrives."; await loadCust(); }),
