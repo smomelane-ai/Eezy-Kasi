@@ -4,28 +4,28 @@
 <meta
   charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Inanda Business Web | Food, rides and local business in Inanda</title>
+<title>Eezy Kasi | Food, rides and local business in Inanda</title>
 <meta name="theme-color" content="#f3f3f1">
 <meta name="description" content="Order food for pick-up from local shops, book car rides and goods transport, and find local businesses in Inanda, KwaZulu-Natal. Works on your phone.">
 <link rel="canonical" href="https://inandabusiness.co.za/">
 <meta name="robots" content="index, follow">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Inanda Business Web">
-<meta property="og:title" content="Inanda Business Web | Food, rides and local business in Inanda">
+<meta property="og:site_name" content="Eezy Kasi">
+<meta property="og:title" content="Eezy Kasi | Food, rides and local business in Inanda">
 <meta property="og:description" content="Order food for pick-up from local shops, book car rides and goods transport, and find local businesses in Inanda, KwaZulu-Natal.">
 <meta property="og:url" content="https://inandabusiness.co.za/">
 <meta property="og:image" content="https://inandabusiness.co.za/icons/icon-512.png">
 <meta property="og:locale" content="en_ZA">
 <meta name="twitter:card" content="summary">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Organization","name":"Inanda Business Web","legalName":"Inanda Business Enterprise Services (PTY) LTD","url":"https://inandabusiness.co.za/","logo":"https://inandabusiness.co.za/icons/icon-512.png","email":"info@inandabusiness.co.za","telephone":"+27817106684","founder":{"@type":"Person","name":"Lufefe Melane"},"address":{"@type":"PostalAddress","streetAddress":"09 Juba Blose Street, Geneva, Bhambayi","addressLocality":"Inanda","addressRegion":"KwaZulu-Natal","postalCode":"4310","addressCountry":"ZA"},"areaServed":{"@type":"Place","name":"Inanda, KwaZulu-Natal, South Africa"}}
+{"@context":"https://schema.org","@type":"Organization","name":"Eezy Kasi","legalName":"Inanda Business Enterprise Services (PTY) LTD","url":"https://inandabusiness.co.za/","logo":"https://inandabusiness.co.za/icons/icon-512.png","email":"info@inandabusiness.co.za","telephone":"+27817106684","founder":{"@type":"Person","name":"Lufefe Melane"},"address":{"@type":"PostalAddress","streetAddress":"09 Juba Blose Street, Geneva, Bhambayi","addressLocality":"Inanda","addressRegion":"KwaZulu-Natal","postalCode":"4310","addressCountry":"ZA"},"areaServed":{"@type":"Place","name":"Inanda, KwaZulu-Natal, South Africa"}}
 </script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Inanda">
+<meta name="apple-mobile-web-app-title" content="Eezy Kasi">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
 <style>
@@ -211,9 +211,9 @@ main{padding-bottom:84px}
 </style>
 </head>
 <body>
-<noscript><div style="max-width:520px;margin:16px auto;padding:0 16px;font-family:system-ui,sans-serif"><h1>Inanda Business Web</h1><p>Order food for pick-up from local shops, book car rides and goods transport, and find local businesses in Inanda, KwaZulu-Natal. This app needs JavaScript to run. <a href="about.html">Read more about us</a>.</p></div></noscript>
+<noscript><div style="max-width:520px;margin:16px auto;padding:0 16px;font-family:system-ui,sans-serif"><h1>Eezy Kasi</h1><p>Order food for pick-up from local shops, book car rides and goods transport, and find local businesses in Inanda, KwaZulu-Natal. This app needs JavaScript to run. <a href="about.html">Read more about us</a>.</p></div></noscript>
 <main>
-  <header><div class="brand">Inanda Business Web</div><div class="zu ink">I.N.K</div><div class="zu">Kubamba ezingelayo</div></header>
+  <header><div class="brand">Eezy Kasi</div><div class="zu ink">I.N.K</div><div class="zu">Kubamba ezingelayo</div></header>
   <div class="bar" id="bar"></div>
   <div id="install"></div>
   <div id="app"></div>
@@ -425,7 +425,7 @@ async function uploadPost(shopId,file){
   const body=await shrink(file), path=`${shopId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.jpg`;
   const r=await fetch(`${SB_URL}/storage/v1/object/shop-posts/${path}`,{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+sess.access_token,"Content-Type":body.type||"image/jpeg"},body});
   if(!r.ok){ let m=""; try{ m=(await r.json()).message||""; }catch(e){}
-    throw new Error(/row-level security|unauthori[sz]ed/i.test(m)?"You are not allowed to post pictures for this shop. Please tell Inanda Business Web.":/too large|exceeded|413/i.test(m+r.status)?"That picture is too big. Please choose a smaller one.":"Could not upload the picture"+(m?": "+m:"")+" (code "+r.status+")"); }
+    throw new Error(/row-level security|unauthori[sz]ed/i.test(m)?"You are not allowed to post pictures for this shop. Please tell Eezy Kasi.":/too large|exceeded|413/i.test(m+r.status)?"That picture is too big. Please choose a smaller one.":"Could not upload the picture"+(m?": "+m:"")+" (code "+r.status+")"); }
   return `${SB_URL}/storage/v1/object/public/shop-posts/${path}`;
 }
 const postCard=(p,del)=>`<div class="post">${p.before_url?`<div class="ba"><figure><img src="${esc(safeUrl(p.before_url))}" alt="Before" loading="lazy"><figcaption>Before</figcaption></figure><figure><img src="${esc(safeUrl(p.image_url))}" alt="After" loading="lazy"><figcaption>After</figcaption></figure></div>`:`<a href="${esc(safeUrl(p.image_url))}" target="_blank" rel="noopener"><img class="one" src="${esc(safeUrl(p.image_url))}" alt="Picture from this shop" loading="lazy"></a>`}${p.caption?`<p class="pcap">${esc(p.caption)}</p>`:""}${del?`<button class="sm" data-a="delpost" data-id="${p.id}">Delete</button>`:""}</div>`;
@@ -481,7 +481,7 @@ function feed(){
 }
 const roleLabel=r=>({customer:"Customer",owner:"Shop",driver:"Driver",admin:"Support"}[r]||"");
 const mbadge=()=>`<span class="mbadge">${ST.unread?" ("+ST.unread+")":""}</span>`;
-function updateBadges(){ document.querySelectorAll(".mbadge").forEach(b=>{ b.textContent=ST.unread?" ("+ST.unread+")":""; }); document.title=(ST.unread?"("+ST.unread+") ":"")+"Inanda Business Web"; }
+function updateBadges(){ document.querySelectorAll(".mbadge").forEach(b=>{ b.textContent=ST.unread?" ("+ST.unread+")":""; }); document.title=(ST.unread?"("+ST.unread+") ":"")+"Eezy Kasi"; }
 const logHtml=()=>ST.msgs.length?ST.msgs.map(m=>`<div class="bub ${m.sender_id===sess.user.id?"me":"them"}">${esc(m.body).replace(/\n/g,"<br>")}<span class="bt">${new Date(m.created_at).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span></div>`).join(""):"<small>No messages yet. Say hello.</small>";
 const chatRows=()=>ST.chats.map(c=>`<button class="chatrow" data-a="openchat" data-id="${c.chat_id}"><div><b>${esc(c.with_name)}</b><br><small>${esc((c.last_body||"").slice(0,70))}</small></div><div class="chatmeta">${ago(c.last_at)}${c.unread?`<span class="dot">${c.unread}</span>`:""}</div></button>`).join("")||'<div class="card"><small>No messages yet. To start one, tap Message on a shop, a driver, an order or a trip.</small></div>';
 function messagesScreen(){
@@ -667,7 +667,7 @@ function applyScreen(){
   ${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car (for car rides)"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
   <label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*">
   <label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">
-  <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox" data-a="chk" data-k="consent" ${ST.form.consent?"checked":""}><span>I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
+  <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox" data-a="chk" data-k="consent" ${ST.form.consent?"checked":""}><span>I agree that Eezy Kasi keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
   <button class="btn" data-a="apply">Send application</button></div>${troubleBlock()}`;
 }
 function earnCard(){
@@ -680,7 +680,7 @@ function driver(){
   if(ownView==="pay") return payScreen();
   const me=ST.me; if(!me) return applyScreen();
   const d=ST.dDue||{}, due=d.amount_due_cents||0, offered=new Set(ST.myOffers.map(o=>o.request_id));
-  const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Inanda Business Web.</div>':"");
+  const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Eezy Kasi.</div>':"");
   const carCard=me.car_photo_path?"":carCardHtml();
   const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
   const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and new ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
@@ -712,7 +712,7 @@ function owner(){
   if(ownView==="pay") return payScreen();
   if(ownView==="stmt") return stmtScreen();
   const sh=ST.shop;
-  if(!sh) return `<h1>Your shop</h1>${msgs()}<div class="card"><small>No shop is linked to your login yet. Ask Inanda Business Web to set it up.</small></div>`;
+  if(!sh) return `<h1>Your shop</h1>${msgs()}<div class="card"><small>No shop is linked to your login yet. Ask Eezy Kasi to set it up.</small></div>`;
   const d=ST.due||{}, due=d.amount_due_cents||0;
   const bn=sh.status==="paused"?'<div class="banner bad"><strong>Your shop is paused</strong>Customers cannot order until the amount due is paid.</div>':"";
   const open=ST.orders.map(o=>{
@@ -721,7 +721,7 @@ function owner(){
     if(cancelling===o.id) act=`<select id="why"><option>Customer not answering</option><option>Out of stock</option><option>Shop closed</option><option>Too far to deliver</option></select><button class="btn ghost" data-a="docancel" data-id="${o.id}">Confirm cancel</button>`;
     else act=(o.status==="placed"?`<button class="btn" data-a="accept" data-id="${o.id}">Accept order</button>`:`<button class="btn" data-a="deliver" data-id="${o.id}">${pk?"Collected — cash received":"Delivered — cash collected"}</button>`)+`<button class="btn ghost" data-a="cancel" data-id="${o.id}">Cancel</button>`;
     return `<div class="card"><div class="row"><b>Order #${o.id}</b><span>${pk?'<span class="tag">Pick up</span> ':""}<span class="tag ${t[1]}">${t[0]}</span></span></div><p style="margin:4px 0">${what}</p><p style="margin:4px 0"><small>${pk?"<b>PICK UP</b>: the customer collects at your shop":"Deliver to: "+esc(o.delivery_address)}</small> <button class="sm" data-a="chatwith" data-v="${o.customer_id}">Message customer</button></p>
-      <p class="note" style="margin:6px 0">${pk?`The customer pays <b>${R(o.cash_cents)}</b> cash at your shop. You keep your full price of ${R(o.shop_cents)}. The extra ${R(net)} is the app fee the customer pays on top, and you pass it on to Inanda Business Web.`:`Collect <b>${R(o.cash_cents)}</b> cash. You keep ${R(o.shop_cents+cr)}. You owe ${R(net)}.`}</p>${act}</div>`;}).join("");
+      <p class="note" style="margin:6px 0">${pk?`The customer pays <b>${R(o.cash_cents)}</b> cash at your shop. You keep your full price of ${R(o.shop_cents)}. The extra ${R(net)} is the app fee the customer pays on top, and you pass it on to Eezy Kasi.`:`Collect <b>${R(o.cash_cents)}</b> cash. You keep ${R(o.shop_cents+cr)}. You owe ${R(net)}.`}</p>${act}</div>`;}).join("");
   const prices=ST.menu.map(i=>`<div class="row"><span>${esc(i.name)}</span><span>Shop R <input type="number" min="1" step="0.5" value="${i.shop_price_cents/100}" data-a="price" data-id="${i.id}" aria-label="Shop price for ${esc(i.name)}"> → delivery <b>${R(i.app_price_cents)}</b> · pick up <b>${R(i.pickup_price_cents||i.shop_price_cents)}</b></span></div>`).join("");
   return `<h1>${esc(sh.name)}</h1><p class="sub">Pay on the 1st of every month.</p>${bn}${msgs()}
   <div class="card"><h2>Amount due</h2>
@@ -805,7 +805,7 @@ async function refreshPending(){
 }
 function pendingScreen(){
   const p=ST.profile||{}, req=p.requested_role||"customer";
-  if(p.status==="suspended") return `<h1>Account suspended</h1>${msgs()}<div class="card"><div class="banner bad"><strong>Your account is suspended</strong>Please contact Inanda Business Web.</div></div>`;
+  if(p.status==="suspended") return `<h1>Account suspended</h1>${msgs()}<div class="card"><div class="banner bad"><strong>Your account is suspended</strong>Please contact Eezy Kasi.</div></div>`;
   if(req==="driver"&&!ST.me) return applyScreen();
   const who=req==="driver"?"driver":req==="owner"?"shop owner":"customer";
   let det="";
@@ -914,7 +914,7 @@ async function pollWork(){
   }catch(e){}
 }
 
-const LOGO = `<svg viewBox="0 0 260 226" role="img" aria-label="Inanda Business Web logo: a woman paying a man">
+const LOGO = `<svg viewBox="0 0 260 226" role="img" aria-label="Eezy Kasi logo: a woman paying a man">
 <circle cx="130" cy="102" r="94" fill="#f2b705"/><circle cx="130" cy="102" r="94" fill="none" stroke="#12352b" stroke-width="5"/>
 <path d="M60 168h140" stroke="#12352b" stroke-width="4" stroke-linecap="round"/>
 <g><path d="M63 80 Q85 20 107 80 Z" fill="#c0392b"/><circle cx="85" cy="64" r="16" fill="#8d5a3b"/><path d="M66 56 Q85 30 104 56 Q85 46 66 56Z" fill="#c0392b"/>
@@ -928,7 +928,7 @@ const LOGO = `<svg viewBox="0 0 260 226" role="img" aria-label="Inanda Business 
 <g transform="rotate(-8 148 98)"><rect x="134" y="90" width="28" height="15" rx="2" fill="#1b7a4b" stroke="#12352b" stroke-width="2"/>
 <text x="148" y="102" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="sans-serif">R</text></g>
 <g fill="#12352b"><path d="M148 66 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3z"/><path d="M122 54 l2 4 4 2 -4 2 -2 4 -2 -4 -4 -2 4 -2z"/></g>
-<text x="130" y="219" text-anchor="middle" font-size="14" font-weight="800" letter-spacing="1.5" style="fill:var(--ink)" font-family="Bricolage Grotesque,system-ui,sans-serif">INANDA BUSINESS WEB</text></svg>`;
+<text x="130" y="219" text-anchor="middle" font-size="18" font-weight="800" letter-spacing="2" style="fill:var(--ink)" font-family="Bricolage Grotesque,system-ui,sans-serif">EEZY KASI</text></svg>`;
 
 const SB_URL="https://zcqkydqrsriijjwaajjw.supabase.co", SB_KEY="sb_publishable_GE52i2wYNandjWq8rjpF4A_kbqIFraT";
 let sess=null, BANK=null, authMsg="";
@@ -1015,7 +1015,7 @@ let LASTERR="";
 function troubleBlock(){
   if(ST.troubleSent) return '<div class="banner ok" style="margin-top:12px"><strong>Thank you</strong>We got your message and will help you as soon as we can.</div>';
   if(!ST.trouble) return '<p style="margin:12px 0"><button class="sm" type="button" data-a="trouble">Having trouble? Tell us</button></p>';
-  return `<div class="card" style="margin-top:12px"><h2>Having trouble?</h2>${ST.troubleErr?`<div class="banner bad">${esc(ST.troubleErr)}</div>`:""}<label for="f_tmsg">What went wrong?</label><textarea id="f_tmsg" rows="4" maxlength="500" style="width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)" data-a="form" data-k="tmsg" placeholder="For example: the photo button does nothing">${esc(ST.form.tmsg||"")}</textarea>${fld("tcontact","Your cell number so we can call or WhatsApp you (optional)","e.g. 081 234 5678","tel")}<div class="note">We also send the last error you saw and your phone type, so we can find the problem. We never see your password.</div><button class="btn" data-a="troublesend">Send to Inanda Business Web</button><button class="btn ghost" data-a="troublecancel">Cancel</button></div>`;
+  return `<div class="card" style="margin-top:12px"><h2>Having trouble?</h2>${ST.troubleErr?`<div class="banner bad">${esc(ST.troubleErr)}</div>`:""}<label for="f_tmsg">What went wrong?</label><textarea id="f_tmsg" rows="4" maxlength="500" style="width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)" data-a="form" data-k="tmsg" placeholder="For example: the photo button does nothing">${esc(ST.form.tmsg||"")}</textarea>${fld("tcontact","Your cell number so we can call or WhatsApp you (optional)","e.g. 081 234 5678","tel")}<div class="note">We also send the last error you saw and your phone type, so we can find the problem. We never see your password.</div><button class="btn" data-a="troublesend">Send to Eezy Kasi</button><button class="btn ghost" data-a="troublecancel">Cancel</button></div>`;
 }
 function friendlyAuth(m){
   m=String(m||"");
@@ -1120,7 +1120,7 @@ function loginScreen(){
   ${showResend?'<button class="btn" data-a="resend">Send the confirmation email again</button>':""}
   <button class="btn ghost" data-a="tosignup">Create account</button>
   <button class="sm" style="margin-top:12px" data-a="forgot">Forgot password?</button>
-  <div class="note">Shop owners and admin get their access from Inanda Business Web. Log in with the email you were given.</div></div>${troubleBlock()}`;
+  <div class="note">Shop owners and admin get their access from Eezy Kasi. Log in with the email you were given.</div></div>${troubleBlock()}`;
 }
 const IN_APP=(()=>{ try{ const u=navigator.userAgent||""; return /FBAN|FBAV|Instagram|TikTok|musical_ly|; wv\)/.test(u)||(/iPhone|iPad/.test(u)&&!/Safari\//.test(u)); }catch(e){ return false; } })();
 const drvHelp=()=>(IN_APP?'<div class="banner bad"><strong>Open this page in Chrome or Safari</strong>It looks like you opened this link inside another app (such as WhatsApp or Facebook). The camera and photo buttons often do not work there. Tap the menu (three dots) or the share button, then choose Open in Chrome or Open in Safari.</div>':"")+'<div class="note"><b>Before you start, have these ready:</b><br>1. A photo of your face.<br>2. A photo of your car, with the number plate showing.<br>3. A photo of your ID.<br>4. Your ID number and your car number plate.<br>5. Your cell number, for example 0781234567.<br>Take the photos with the normal camera setting (JPG).</div>';
@@ -1141,7 +1141,7 @@ function signupScreen(){
   <p style="margin:8px 0 0"><button type="button" class="sm" data-legal="open">Read the full privacy policy and terms</button></p>
   ${fld("semail","Email address","","email")}
   <label for="spw">Create a password</label><input id="spw" type="password" autocomplete="new-password" value="${esc(ST.form.spwv||"")}" placeholder="At least 8 characters">
-  <label class="chk"><input type="checkbox" data-a="chk" data-k="sagree" ${ST.form.sagree?"checked":""}><span>${ST.form.sacct==="driver"?"I have read the privacy policy and terms. I agree that Inanda Business Web keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.":"I have read the privacy policy and terms, and I agree."}</span></label>
+  <label class="chk"><input type="checkbox" data-a="chk" data-k="sagree" ${ST.form.sagree?"checked":""}><span>${ST.form.sacct==="driver"?"I have read the privacy policy and terms. I agree that Eezy Kasi keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.":"I have read the privacy policy and terms, and I agree."}</span></label>
   ${tsBox()}
   <button class="btn" data-a="signup">Create account</button>
   <button class="btn ghost" data-a="tologin">Back to log in</button></div>${troubleBlock()}`;
@@ -1469,7 +1469,7 @@ const LEGAL_VERSION="policy-2026-10-16";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p class="sub" style="margin:0 0 12px">Last updated: 16 October 2026.</p>
 <h3>Who we are</h3>
-<p>Inanda Business Web (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Inanda Business Web is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
+<p>Eezy Kasi (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Eezy Kasi is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
 <p>Our address: 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310.</p>
 <p>Contact: info@inandabusiness.co.za or 081 710 6684.</p>
 
@@ -1497,7 +1497,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <li>If you ask for your regular driver first, only that driver sees the ride for the first 60 seconds. After that, all car drivers nearby can see it.</li>
 <li>While a car ride is waiting, car drivers who are online within a few kilometres of the pick-up can see its pick-up and drop-off places, the distance and the price.</li>
 <li>A driver’s name, face photo, car photo and vehicle details are shown to customers once the driver is approved.</li>
-<li>A driver’s ID number and ID photo are seen only by the admin of Inanda Business Web. The admin also sees the records of driver positions that were rejected because they jumped too far, too fast. A driver’s position is never shown to customers or to other drivers.</li>
+<li>A driver’s ID number and ID photo are seen only by the admin of Eezy Kasi. The admin also sees the records of driver positions that were rejected because they jumped too far, too fast. A driver’s position is never shown to customers or to other drivers.</li>
 <li>A shop sees the orders placed with it, including the delivery address.</li>
 <li>A construction business’s name, trade, the places it works in and the photos of its work are shown to customers in the Construction list, together with a Message button.</li>
 <li>A place that someone types is kept with their account. When we approve that person, or add the place ourselves, its name joins the list of places that everyone sees. We never show who typed it.</li>
@@ -1521,13 +1521,13 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 
 <h2 style="margin:18px 0 6px">Part 2: Terms of use</h2>
 <h3>Using the app</h3>
-<p>Inanda Business Web connects customers with local businesses and drivers. We (Inanda Business Enterprise Services (PTY) LTD, trading as Inanda Business Web) are the platform. Shops sell their own goods, and drivers work for themselves. They do not work for us. Please give true details and keep your password private. You are responsible for what happens on your account.</p>
+<p>Eezy Kasi connects customers with local businesses and drivers. We (Inanda Business Enterprise Services (PTY) LTD, trading as Eezy Kasi) are the platform. Shops sell their own goods, and drivers work for themselves. They do not work for us. Please give true details and keep your password private. You are responsible for what happens on your account.</p>
 <h3>Customers</h3>
 <p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Give your trip PIN only to the driver in the car you booked, after you have checked the car and the driver’s photo. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
 ${DELIVERY_ON?"":"<p><b>Shop delivery is not available at the moment.</b> For now, food shops offer pick-up only: you collect your order at the shop and pay cash there. For other shops, please message the shop to arrange your order. We will update these terms and this policy when shop delivery starts. This does not change car rides or goods trips.</p>"}
 <h3>Shops and other businesses</h3>
-<p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Enterprise Services (PTY) LTD (Inanda Business Web) the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
-<h3>Construction businesses</h3> <p>Choose the trade and the places you really work in, and keep them up to date. Do not type false or offensive text. We may change or remove it, or remove the business.</p> <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Inanda Business Web from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Inanda Business Web permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
+<p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Enterprise Services (PTY) LTD (Eezy Kasi) the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
+<h3>Construction businesses</h3> <p>Choose the trade and the places you really work in, and keep them up to date. Do not type false or offensive text. We may change or remove it, or remove the business.</p> <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Eezy Kasi from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Eezy Kasi permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
 <p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. A driver can only start a car ride by typing the customer’s 4-digit PIN, so do not start a trip without it and never ask a customer to send it by message. Car rides can only be accepted by drivers registered with a car whose position is within a few kilometres of the pick-up, and the first one to accept a ride gets it. Do not fake or change your location: a position that jumps many kilometres in seconds is rejected and recorded, and we may suspend your account. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
 <h3>Payments and fees</h3>
 <p>Customers pay shops and drivers directly, in cash. Shops and drivers pay fees to Inanda Business Enterprise Services (PTY) LTD by EFT, using the bank details and reference shown in the app. Tell us when you have paid. We confirm it once the money reaches our account.</p>
@@ -1561,7 +1561,7 @@ const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 function installUI(){
   const el = document.getElementById("install");
   if(standalone) { el.innerHTML = ""; return; }
-  if(deferred) el.innerHTML = '<div class="card"><b>Install Inanda Business Web</b><p class="sub" style="margin:4px 0 0">Add it to your phone or computer for quick access.</p><button class="btn" id="inst">Install app</button></div>';
+  if(deferred) el.innerHTML = '<div class="card"><b>Install Eezy Kasi</b><p class="sub" style="margin:4px 0 0">Add it to your phone or computer for quick access.</p><button class="btn" id="inst">Install app</button></div>';
   else if(isIOS) el.innerHTML = '<div class="note" style="margin:0 0 14px">To install: tap the Share button, then "Add to Home Screen".</div>';
   else el.innerHTML = "";
   const b = document.getElementById("inst");
@@ -1925,7 +1925,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     const path = sid + "/" + name;
     const r = await fetch(SB_URL + "/storage/v1/object/owner-videos/" + path, { method: "POST", headers: { apikey: SB_KEY, Authorization: "Bearer " + sess.access_token, "Content-Type": blob.type || "application/octet-stream" }, body: blob });
     if (!r.ok) { let m = ""; try { m = (await r.json()).message || ""; } catch (e) {}
-      throw new Error(/row-level security|unauthori[sz]ed/i.test(m) ? "You are not allowed to upload videos for this shop. Please tell Inanda Business Web." : /too large|exceeded|413/i.test(m + r.status) ? "That video is too big. The limit is " + MAXMB + " MB." : "Could not upload the video" + (m ? ": " + m : "") + " (code " + r.status + ")"); }
+      throw new Error(/row-level security|unauthori[sz]ed/i.test(m) ? "You are not allowed to upload videos for this shop. Please tell Eezy Kasi." : /too large|exceeded|413/i.test(m + r.status) ? "That video is too big. The limit is " + MAXMB + " MB." : "Could not upload the video" + (m ? ": " + m : "") + " (code " + r.status + ")"); }
     return SB_URL + "/storage/v1/object/public/owner-videos/" + path;
   }
   const ovPath = u => u && String(u).split("/object/public/owner-videos/")[1];
@@ -1943,7 +1943,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     const b = _o3();
     if (!(ownView === "due" && ST.shop)) return b;
     const list = (ST.myVideos || []).map(v => `<div class="row"><span><b>${esc(v.title)}</b><br><small>${esc(stText[v.status] || v.status)}</small></span><button class="sm" data-a="delovideo" data-id="${v.id}">Delete</button></div>`).join("");
-    return b + `<h2>Promote your business</h2><div class="card"><small>Send a video of up to 1 minute (MP4 or WebM, up to ${MAXMB} MB). Inanda Business Web checks it first. Approved videos go on the home screen in batches.</small>
+    return b + `<h2>Promote your business</h2><div class="card"><small>Send a video of up to 1 minute (MP4 or WebM, up to ${MAXMB} MB). Eezy Kasi checks it first. Approved videos go on the home screen in batches.</small>
       ${fld("ovtitle", "Video title", "e.g. Fresh chips every day")}
       <label for="ov_file">Video</label><input id="ov_file" type="file" accept="video/mp4,video/webm">
       <label class="chk"><input id="ov_ok" type="checkbox"><span>I made this video or I am allowed to use it, and anyone shown in it has agreed.</span></label>
@@ -1965,7 +1965,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     let purl = null;
     try { const obj = URL.createObjectURL(file), b = await grabFrame(obj, true); URL.revokeObjectURL(obj); purl = await putOv(sid, b, stamp + "-poster.jpg"); } catch (e) {}
     await rpc("add_owner_video", { p_shop: sid, p_title: title, p_video: vurl, p_poster: purl });
-    f.ovtitle = ""; await loadOwner(); ST.note = "Video sent. It will appear after Inanda Business Web approves it.";
+    f.ovtitle = ""; await loadOwner(); ST.note = "Video sent. It will appear after Eezy Kasi approves it.";
   });
   H.delovideo = (el, id) => go(async () => {
     if (!confirm("Delete this video?")) return;
@@ -2152,8 +2152,8 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
       const r = await fetch(SB_URL + "/storage/v1/object/voice-notes/" + path, { method: "POST", headers: { apikey: SB_KEY, Authorization: "Bearer " + sess.access_token, "Content-Type": base }, body: blob });
       if (!r.ok) {
         let m = ""; try { m = (await r.json()).message || ""; } catch (e) {}
-        throw new Error(/bucket not found/i.test(m) ? "Voice notes are not switched on yet. Please tell Inanda Business Web."
-          : /row-level security|unauthori[sz]ed/i.test(m) ? "You are not allowed to send voice notes yet. Please tell Inanda Business Web."
+        throw new Error(/bucket not found/i.test(m) ? "Voice notes are not switched on yet. Please tell Eezy Kasi."
+          : /row-level security|unauthori[sz]ed/i.test(m) ? "You are not allowed to send voice notes yet. Please tell Eezy Kasi."
           : r.status === 413 ? "That voice note is too big."
           : r.status === 415 || /mime/i.test(m) ? "This phone's voice note format is not supported."
           : "Could not upload the voice note" + (m ? ": " + m : "") + " (code " + r.status + ").");
@@ -2417,7 +2417,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
       '<div class="fq1"><span class="fmark">&ldquo;</span><p>' + esc(data.q1) + '</p><div class="fbar"></div></div>' +
       '<div class="fgap"><span>&#9670;</span><span>&#9670;</span><span>&#9670;</span></div>' +
       '<div class="fq2"><p>' + esc(data.q2) + '</p><span class="fmark">&rdquo;</span></div>' +
-      '<div style="text-align:center;margin:18px 0 4px"><div style="width:46px;height:3px;border-radius:3px;margin:0 auto 10px;background:linear-gradient(90deg,#e7c76a,#0f766e)"></div><div style="font:800 21px/1.2 Georgia,serif;letter-spacing:.02em">Lufefe Melane</div><div class="fcap" style="margin-top:5px">Founder, Inanda Business Web</div></div>' +
+      '<div style="text-align:center;margin:18px 0 4px"><div style="width:46px;height:3px;border-radius:3px;margin:0 auto 10px;background:linear-gradient(90deg,#e7c76a,#0f766e)"></div><div style="font:800 21px/1.2 Georgia,serif;letter-spacing:.02em">Lufefe Melane</div><div class="fcap" style="margin-top:5px">Founder, Eezy Kasi</div></div>' +
       '<div style="margin:18px 0 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)">' +
         '<div class="fcap" style="text-align:center">Our mission</div>' +
         '<p style="margin:6px 0 14px;text-align:center">To help people own something that will bear fruit for them and for their grandchildren, by using technology to open doors to local businesses, safe transport and fair opportunities, especially for those who cannot easily access the resources they need.</p>' +
@@ -2656,7 +2656,7 @@ Object.assign(H,{
   const ZU = {
     "Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.":"Udinga imoto? Khetha Cela imoto: i-app isebenzisa indawo yefoni yakho ukubala ibanga futhi ikubonise intengo ebekiwe. Udinga ukuthutha impahla? Khetha Thutha impahla, uveze lapho uvela khona nalapho uya khona, bese abashayeli abahamba lowo mzila bayamukela. Ukhokhela umshayeli ngemali eyimali. Cindezela Ngifike kahle uma usufikile.",
     "Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.":"Khetha lapho uvela khona nalapho uya khona. I-app ibala ibanga futhi ikubonise intengo eyodwa ebekiwe ngaphambi kokuba ucele umshayeli. Ukhokhela umshayeli ngemali eyimali.",
-    "Having trouble? Tell us":"Unenkinga? Sitshele","What went wrong?":"Kwenzeke ini?","Send to Inanda Business Web":"Thumela ku-Inanda Business Web","Thank you":"Siyabonga","Choose your vehicle":"Khetha imoto yakho","Vehicle type":"Uhlobo lwemoto",
+    "Having trouble? Tell us":"Unenkinga? Sitshele","What went wrong?":"Kwenzeke ini?","Send to Eezy Kasi":"Thumela ku-Eezy Kasi","Thank you":"Siyabonga","Choose your vehicle":"Khetha imoto yakho","Vehicle type":"Uhlobo lwemoto",
     "Home":"Ikhaya","Messages":"Imiyalezo","Log in":"Ngena","Create account":"Dala i-akhawunti","Forgot password?":"Ukhohlwe iphasiwedi?",
     "Email address":"Ikheli le-imeyili","Password":"Iphasiwedi","Back":"Emuva","Back to log in":"Buyela ekungeneni","Cancel":"Khansela",
     "Refresh":"Vuselela","Log out":"Phuma","Search":"Sesha","Change":"Shintsha","Create a password":"Dala iphasiwedi",

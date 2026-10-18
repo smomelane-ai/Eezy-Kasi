@@ -1,6 +1,6 @@
-// Service worker for Inanda Business Web.
+// Service worker for Eezy Kasi.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v74";
+const VERSION = "inanda-v75";
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png"];
@@ -88,7 +88,7 @@ self.addEventListener("push", e => {
   try { d = e.data ? e.data.json() : {}; } catch (_) { d = { body: e.data ? e.data.text() : "" }; }
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(cs => {
     if (cs.some(c => c.visibilityState === "visible")) return;   // the app is open on screen: it plays its own sound
-    return self.registration.showNotification(d.title || "Inanda Business Web", {
+    return self.registration.showNotification(d.title || "Eezy Kasi", {
       body: d.body || "You have something new.",
       icon: "icons/icon-192.png", badge: "icons/icon-192.png",
       tag: d.tag || "inanda", renotify: true, requireInteraction: true, silent: false, vibrate: [500, 150, 500, 150, 500, 150, 500, 150, 500],
