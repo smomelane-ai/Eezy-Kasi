@@ -1,4 +1,4 @@
-INANDA BUSINESS WEB - installable web app (PWA)
+Eezy Kasi - installable web app (PWA)
 Kubamba ezingelayo
 Live at: https://inandabusiness.co.za
 
