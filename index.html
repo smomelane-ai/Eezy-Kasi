@@ -1120,7 +1120,7 @@ function loginScreen(){
   ${showResend?'<button class="btn" data-a="resend">Send the confirmation email again</button>':""}
   <button class="btn ghost" data-a="tosignup">Create account</button>
   <button class="sm" style="margin-top:12px" data-a="forgot">Forgot password?</button>
-  <div class="note">Shop owners and admin get their access from Eezy Kasi. Log in with the email you were given.</div></div>${troubleBlock()}`;
+  <div class="note">Customers, drivers and business owners: tap Create account. If we set up your shop for you, log in with the email we gave you.</div></div>${troubleBlock()}`;
 }
 const IN_APP=(()=>{ try{ const u=navigator.userAgent||""; return /FBAN|FBAV|Instagram|TikTok|musical_ly|; wv\)/.test(u)||(/iPhone|iPad/.test(u)&&!/Safari\//.test(u)); }catch(e){ return false; } })();
 const drvHelp=()=>(IN_APP?'<div class="banner bad"><strong>Open this page in Chrome or Safari</strong>It looks like you opened this link inside another app (such as WhatsApp or Facebook). The camera and photo buttons often do not work there. Tap the menu (three dots) or the share button, then choose Open in Chrome or Open in Safari.</div>':"")+'<div class="note"><b>Before you start, have these ready:</b><br>1. A photo of your face.<br>2. A photo of your car, with the number plate showing.<br>3. A photo of your ID.<br>4. Your ID number and your car number plate.<br>5. Your cell number, for example 0781234567.<br>Take the photos with the normal camera setting (JPG).</div>';
@@ -2654,6 +2654,7 @@ Object.assign(H,{
 // errors from the server) stays exactly as it is. Switching back to English restores every original word.
 (function () {
   const ZU = {
+    "Customers, drivers and business owners: tap Create account. If we set up your shop for you, log in with the email we gave you.":"Amakhasimende, abashayeli nabanikazi bamabhizinisi: cindezela u-Dala i-akhawunti. Uma isitolo sakho sisethwe yithi, ngena nge-imeyili esiyinikezile.",
     "Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.":"Udinga imoto? Khetha Cela imoto: i-app isebenzisa indawo yefoni yakho ukubala ibanga futhi ikubonise intengo ebekiwe. Udinga ukuthutha impahla? Khetha Thutha impahla, uveze lapho uvela khona nalapho uya khona, bese abashayeli abahamba lowo mzila bayamukela. Ukhokhela umshayeli ngemali eyimali. Cindezela Ngifike kahle uma usufikile.",
     "Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.":"Khetha lapho uvela khona nalapho uya khona. I-app ibala ibanga futhi ikubonise intengo eyodwa ebekiwe ngaphambi kokuba ucele umshayeli. Ukhokhela umshayeli ngemali eyimali.",
     "Having trouble? Tell us":"Unenkinga? Sitshele","What went wrong?":"Kwenzeke ini?","Send to Eezy Kasi":"Thumela ku-Eezy Kasi","Thank you":"Siyabonga","Choose your vehicle":"Khetha imoto yakho","Vehicle type":"Uhlobo lwemoto",
