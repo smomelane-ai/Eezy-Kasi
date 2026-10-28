@@ -682,8 +682,8 @@ function driver(){
   const d=ST.dDue||{}, due=d.amount_due_cents||0, offered=new Set(ST.myOffers.map(o=>o.request_id));
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Eezy Kasi.</div>':"");
   const carCard=me.car_photo_path?"":carCardHtml();
-  const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
-  const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and new ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
+  const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':x.same_area?'<span class="tag ok">From your kasi</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
+  const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and rides from your own place show first. New ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
     return `<div class="card"><div class="row"><b>${esc(r.from_place)} → ${esc(r.to_place)}</b><b>${rt?R(rt.price_cents):""}</b></div><small>${esc(r.goods_type)}: ${esc(r.description||"")}<br>When: ${esc(r.when_text||"-")}${r.budget_cents?"<br>Customer budget: "+R(r.budget_cents):""}</small>${offered.has(r.id)?'<div class="note">You accepted. Waiting for the customer to choose.</div>':`<button class="btn" data-a="offer" data-id="${r.id}">Accept at ${R(rt?rt.price_cents:0)}</button>`}</div>`}).join("");
   const jobs=ST.jobs.map(j=>{const g=tagFor(j.status), c=ST.contacts[j.id]||{};
@@ -1132,7 +1132,7 @@ function signupScreen(){
   ${authMsg?`<div class="banner bad">${esc(authMsg)}</div>`:""}
   ${ST.areas.length?"":'<div class="note">Loading locations… <button class="sm" data-a="reloadareas">Try again</button></div>'}
   ${sel("sacct","I am signing up as",[["customer","A customer"],["owner","A business owner"],["driver","A driver"]])}
-  ${fld("sname","First name")}${fld("ssurname","Surname")}${sel("sarea",ST.form.sacct==="owner"?"Where is your business in Inanda?":"Your location in Inanda",areas)}${ST.form.sarea==="__other"?fld("sareao","Type your place name","e.g. Matikwe")+"<small>Use letters and numbers only. We add new places to the list when we approve people.</small>":""}
+  ${fld("sname","First name")}${fld("ssurname","Surname")}${sel("sarea",ST.form.sacct==="owner"?"Where is your business in Inanda?":(ST.form.sacct==="driver"?"Your place in Inanda (customers from here see you first)":"Your location in Inanda"),areas)}${ST.form.sarea==="__other"?fld("sareao","Type your place name","e.g. Matikwe")+"<small>Use letters and numbers only. We add new places to the list when we approve people.</small>":""}
   ${ST.form.sacct==="owner"?fld("sshop","Business name")+fld("saddr","Business address","House number and street")+sel("scat","What type of business is it?",[["food","Food"],["construction","Construction"],["beauty","Beauty"]])+(ST.form.scat==="construction"?constrFields():"")+'<div class="note">We check every business before it goes live. You will see your shop screen after you are approved.</div>':""}
   ${ST.form.sacct==="driver"?drvFields():""}
   ${fld("sphone","Cell number","e.g. 081 234 5678","tel")}
@@ -1247,7 +1247,7 @@ const H={
     if(q2.price_cents!==d.quote.price_cents){ d.quote=q2; throw new Error("The price has changed to "+R(q2.price_cents)+" because the weekend rate has just "+(q2.surcharge_cents>0?"started":"ended")+". Please check it and tap Request again."); }
     await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null});
     f.rdland=""; f.rdnote=""; f.rdpref="";
-    ST.rd=null; await loadTrips(); ST.note="Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts."; }),
+    ST.rd=null; await loadTrips(); ST.note="Ride requested. We are asking drivers from your own place first, then drivers nearby. You will hear a sound when a driver accepts."; }),
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
     const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
   goonline:()=>go(async()=>{ST.online=true; await loadDriver();}),
@@ -1465,9 +1465,9 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-16";
+const LEGAL_VERSION="policy-2026-10-28";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
-<p class="sub" style="margin:0 0 12px">Last updated: 16 October 2026.</p>
+<p class="sub" style="margin:0 0 12px">Last updated: 28 October 2026.</p>
 <h3>Who we are</h3>
 <p>Eezy Kasi (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Eezy Kasi is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
 <p>Our address: 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310.</p>
@@ -1494,7 +1494,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <ul>
 <li>Cell numbers are not shared between customers and drivers, except when a customer chooses to share theirs for a goods trip (see below). They talk to each other through messages and voice notes in the app. A driver's cell number is never shared with customers.</li>
 <li>If you tap Call me back or Ask for a call back on a shop or business, and then confirm, your cell number is sent in that chat to that business only, so they can phone you. The same applies to a bakkie or truck driver you have chosen for a goods trip: your number goes to that one driver only, after you confirm. We never send it without your confirmation, and it is not available for car rides.</li>
-<li>If you ask for your regular driver first, only that driver sees the ride for the first 60 seconds. After that, all car drivers nearby can see it.</li>
+<li>If you ask for your regular driver first, only that driver sees the ride for the first 60 seconds. Then drivers who chose the same place as you (your area in Inanda) see it for the first 45 seconds. After that, all car drivers nearby can see it.</li>
 <li>While a car ride is waiting, car drivers who are online within a few kilometres of the pick-up can see its pick-up and drop-off places, the distance and the price.</li>
 <li>A driver’s name, face photo, car photo and vehicle details are shown to customers once the driver is approved.</li>
 <li>A driver’s ID number and ID photo are seen only by the admin of Eezy Kasi. The admin also sees the records of driver positions that were rejected because they jumped too far, too fast. A driver’s position is never shown to customers or to other drivers.</li>
@@ -2661,7 +2661,7 @@ Object.assign(H,{
     "Home":"Ikhaya","Messages":"Imiyalezo","Log in":"Ngena","Create account":"Dala i-akhawunti","Forgot password?":"Ukhohlwe iphasiwedi?",
     "Email address":"Ikheli le-imeyili","Password":"Iphasiwedi","Back":"Emuva","Back to log in":"Buyela ekungeneni","Cancel":"Khansela",
     "Refresh":"Vuselela","Log out":"Phuma","Search":"Sesha","Change":"Shintsha","Create a password":"Dala iphasiwedi",
-    "Cell number":"Inombolo yeselula","First name":"Igama","Surname":"Isibongo","Your location in Inanda":"Indawo yakho e-Inanda",
+    "Cell number":"Inombolo yeselula","First name":"Igama","Surname":"Isibongo","Your location in Inanda":"Indawo yakho e-Inanda","Your place in Inanda (customers from here see you first)":"Indawo yakho e-Inanda (amakhasimende asuka lapha azokubona kuqala)","From your kasi":"Evela ekasi lakho",
     "I am signing up as":"Ngibhalisa njenge","A customer":"Ikhasimende","A business owner":"Umnikazi webhizinisi","A driver":"Umshayeli",
     "Send reset link":"Thumela isixhumanisi","Reset your password":"Setha kabusha iphasiwedi yakho",
     "What do you need?":"Udinga ini?","Tap one to start.":"Khetha okukodwa ukuze uqale.",
@@ -2691,7 +2691,7 @@ Object.assign(H,{
     "What you kept":"Okugcinile","Balance to pay":"Imali okufanele uyikhokhe","Trips finished":"Uhambo oluqediwe","Amount due":"Inani elikhokhwayo",
     "Pay amount due":"Khokha inani elikhokhwayo","Your jobs":"Imisebenzi yakho","Landmark:":"Isiphawulo:","Pick up:":"Indawo yokukhuphula:",
     "No car rides near you right now.":"Azikho izicelo zezimoto eziseduze nawe okwamanje.","No open jobs.":"Ayikho imisebenzi evuliwe.",
-    "Ride requested. Car drivers can see it now. You will hear a sound when a driver accepts.":"Isicelo sithunyelwe. Abashayeli bezimoto bayasibona manje. Uzozwa umsindo uma umshayeli emukela.",
+    "Ride requested. We are asking drivers from your own place first, then drivers nearby. You will hear a sound when a driver accepts.":"Isicelo sithunyelwe. Siqala ngabashayeli bendawo yakho, bese kuba abasondelene nawe. Uzozwa umsindo uma umshayeli emukela.",
     "Thank you. We are glad you arrived safely.":"Siyabonga. Siyajabula ukuthi ufike kahle.",
     "Trip started. Drive safely.":"Uhambo luqalile. Shayela kahle.",
     "Ride accepted. Message the customer in the app and go to the pick-up.":"Isicelo samukelwe. Thumelela ikhasimende ku-app bese uya lapho ukhuphula khona.",
