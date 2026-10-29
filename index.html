@@ -36,7 +36,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Bricolage Grote
 /* Eezy Kasi background: the whole kasi picture (kasi-bg.webp) under a soft light veil.
    Photo strength: change both .45 numbers (higher = fainter photo, lower = stronger). Keep them equal.
    On wide screens the picture shows whole with a blurred copy filling the sides; on tall phone screens it fills the screen. */
-body{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='%23f3f3f1'/%3E%3Cg fill='none' stroke='%230f766e' stroke-width='2'%3E%3Cpath d='M48 6 90 48 48 90 6 48Z'/%3E%3Cpath d='M48 22 74 48 48 74 22 48Z'/%3E%3C/g%3E%3Cpath d='M48 36 60 48 48 60 36 48Z' fill='%23c9a227'/%3E%3Cg fill='%23111'%3E%3Cpath d='M0 0H18L0 18Z'/%3E%3Cpath d='M96 0V18L78 0Z'/%3E%3Cpath d='M0 96V78L18 96Z'/%3E%3Cpath d='M96 96H78L96 78Z'/%3E%3C/g%3E%3Cg fill='%23c9a227'%3E%3Ccircle cx='48' cy='3' r='2.5'/%3E%3Ccircle cx='48' cy='93' r='2.5'/%3E%3Ccircle cx='3' cy='48' r='2.5'/%3E%3Ccircle cx='93' cy='48' r='2.5'/%3E%3C/g%3E%3C/svg%3E");background-size:96px 96px}
+html,body{background-color:#f3f3f1}
 body::before{content:"";display:none;position:fixed;inset:-40px;z-index:-2;pointer-events:none;background:url("kasi-bg.webp") center/cover no-repeat;filter:blur(22px)}
 body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(rgba(243,243,241,.45),rgba(243,243,241,.45)),url("kasi-bg.webp") 40% 50%/cover no-repeat;background-size:auto,cover}
 @media (min-aspect-ratio:3/5){body::before{display:block}body::after{background-position:0 0,center top;background-size:auto,contain}}
@@ -2225,7 +2225,7 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     '@media (max-width:899px){' +
     '.cols,.col{display:contents}' +
     '.grp.off{display:none}' +
-    '.stabs{flex-wrap:nowrap;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0;margin-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
+    '.stabs{flex-wrap:nowrap;overflow-x:auto;position:sticky;top:0;z-index:5;background:transparent;padding:6px 0;margin-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
     '.stabs::-webkit-scrollbar{display:none}' +
     '.stabs button{flex:1 0 auto;padding:10px 14px;white-space:nowrap}' +
     '}';
