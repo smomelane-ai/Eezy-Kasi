@@ -36,7 +36,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Bricolage Grote
 /* Eezy Kasi background: the whole kasi picture (kasi-bg.webp) under a soft light veil.
    Photo strength: change both .45 numbers (higher = fainter photo, lower = stronger). Keep them equal.
    On wide screens the picture shows whole with a blurred copy filling the sides; on tall phone screens it fills the screen. */
-html,body{background-color:#f3f3f1}
+
 body::before{content:"";display:none;position:fixed;inset:-40px;z-index:-2;pointer-events:none;background:url("kasi-bg.webp") center/cover no-repeat;filter:blur(22px)}
 body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(rgba(243,243,241,.45),rgba(243,243,241,.45)),url("kasi-bg.webp") 40% 50%/cover no-repeat;background-size:auto,cover}
 @media (min-aspect-ratio:3/5){body::before{display:block}body::after{background-position:0 0,center top;background-size:auto,contain}}
