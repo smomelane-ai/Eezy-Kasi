@@ -34,15 +34,17 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}
 /* Eezy Kasi background: the whole kasi picture (kasi-bg.webp) under a soft light veil.
-   Photo strength: change both .45 numbers (higher = fainter photo, lower = stronger). Keep them equal.
+   Photo strength: change both .55 numbers (higher = fainter photo, lower = stronger). Keep them equal.
    On wide screens the picture shows whole with a blurred copy filling the sides; on tall phone screens it fills the screen. */
 
 body::before{content:"";display:none;position:fixed;inset:-40px;z-index:-2;pointer-events:none;background:url("kasi-bg.webp") center/cover no-repeat;filter:blur(22px)}
-body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(rgba(243,243,241,.45),rgba(243,243,241,.45)),url("kasi-bg.webp") 40% 50%/cover no-repeat;background-size:auto,cover}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(rgba(243,243,241,.55),rgba(243,243,241,.55)),url("kasi-bg.webp") 40% 50%/cover no-repeat;background-size:auto,cover}
 @media (min-aspect-ratio:3/5){body::before{display:block}body::after{background-position:0 0,center top;background-size:auto,contain}}
 h1,h2,h3,.brand,.zu,.muted,label,main>p,#app>p,.sub{text-shadow:0 0 6px rgba(243,243,241,.95),0 0 14px rgba(243,243,241,.85)}
 /* Small grey lines under headings (for example "Tap one to start.") sit directly on the photo, so give them a stronger glow and darker text. */
 .sub{color:#333;font-weight:600;text-shadow:0 0 3px #f3f3f1,0 0 6px #f3f3f1,0 0 10px rgba(243,243,241,.95),0 0 18px rgba(243,243,241,.9)}
+/* Solid cover behind the phone status bar, so page content cannot show through it while scrolling. It has no height on screens without a notch or status bar. */
+html::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#f3f3f1;z-index:30;pointer-events:none}
 main{max-width:520px;margin:0 auto;padding:16px}
 .tabs{display:flex;gap:6px;margin-bottom:10px}
 .tabs button{flex:1;font:inherit;font-weight:600;font-size:14px;padding:10px 6px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
