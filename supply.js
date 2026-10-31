@@ -252,7 +252,7 @@
 .spdemo li{margin:4px 0}
 .spchips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .spchips button{flex:1 1 120px}
-.spin{width:100%;margin:4px 0 8px}
+input.spin,select.spin{width:100%;box-sizing:border-box;margin:4px 0 8px;font-size:16px;padding:11px;border-radius:10px}
 .spgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 a.btn{display:block;text-align:center;text-decoration:none;box-sizing:border-box}
 `;
