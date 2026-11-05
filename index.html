@@ -268,6 +268,49 @@ const msgs=()=>(ST.err?`<div class="banner bad">${esc(ST.err)}</div>`:"")+(ST.no
 
 // ---- loading real data from the database ----
 async function loadAreas(){ ST.areas=await sb("/rest/v1/areas?select=id,name&order=id"); }
+// ---- EFT: customers can pay a shop or a car driver by bank transfer (opt-in; cash stays the default) ----
+const BANK_TYPES=["Cheque / Current","Savings","Transmission"];
+const eftOn=sid=>!!(ST.eftShops&&ST.eftShops.has(sid));
+async function loadEftShops(){ ST.eftShops=new Set(); try{ ((await rpc("eft_shop_ids",{}))||[]).forEach(x=>ST.eftShops.add(+(typeof x==="object"&&x?Object.values(x)[0]:x))); }catch(e){} }
+async function loadEftOrders(){          // customer: which of my recent orders are EFT, and the bank details for the open ones
+  ST.eftO={};
+  try{
+    const ids=(ST.mine||[]).map(o=>o.id); if(!ids.length) return;
+    const rows=await sb(`/rest/v1/orders?select=id,pay_method,eft_paid_at,eft_received_at&id=in.(${ids.join(",")})`);
+    for(const r of rows){ if(r.pay_method!=="eft") continue;
+      const o=ST.mine.find(x=>x.id===r.id), open=!!o&&(o.status==="placed"||o.status==="accepted");
+      const e=ST.eftO[r.id]={paid:!!r.eft_paid_at,received:!!r.eft_received_at,open};
+      if(open){ try{ e.d=await rpc("get_pay_details",{p_kind:"order",p_id:r.id}); }catch(er){} } }
+  }catch(e){}
+}
+async function refreshEftOrders(){ ST.mine=await sb(`/rest/v1/orders?select=id,status,cash_cents&customer_id=eq.${sess.user.id}&order=id.desc&limit=8`); await loadEftOrders(); }
+async function loadMyEft(){               // shop owner or car driver: my own EFT settings
+  ST.eftLoaded=true; ST.myEft=null;
+  try{ const m=(await rpc("my_eft_details",{}))||{}; ST.myEft=m; const f=ST.form;
+    if(f.efton===undefined) f.efton=!!m.enabled; if(f.eftname===undefined) f.eftname=m.account_name||""; if(f.eftbank===undefined) f.eftbank=m.bank_name||"";
+    if(f.efttype===undefined) f.efttype=m.account_type||BANK_TYPES[0]; if(f.eftnum===undefined) f.eftnum=m.account_number||""; if(f.eftbranch===undefined) f.eftbranch=m.branch_code||"";
+  }catch(e){}
+}
+function eftPayBox(k,id,e){               // the customer's "pay by EFT" box for one order (k="o") or one ride (k="r")
+  const d=e.d, who=k==="r"?"driver":"shop";
+  if(e.received) return `<div class="banner ok"><strong>Payment confirmed</strong>The ${who} has seen your money. ${k==="r"?"Give the driver your trip PIN when you get in.":"The shop will now prepare your order."}</div>`;
+  if(!d) return `<div class="note">Loading the ${who}'s bank details. Tap Refresh in a moment.</div>`;
+  const row=(l,v)=>v?`<div class="row"><span>${l}</span><b>${esc(String(v))}</b></div>`:"";
+  return `${row("Pay exactly",R(d.amount_cents))}${row("Bank",d.bank_name)}${row("Account holder",d.account_name)}${row("Account type",d.account_type)}${row("Account number",d.account_number)}${row("Branch code",d.branch_code)}${row("Reference",d.reference)}
+  <p style="margin:6px 0"><small>Use this reference so the ${who} can find your payment. Pay only into these details and never share them in a chat. If something looks wrong, tap Report.</small></p>
+  ${e.paid?`<div class="note">You said you have paid. Waiting for the ${who} to see the money.</div>`:`<button class="btn" data-a="eftpaid" data-k="${k}" data-id="${id}">I have paid</button>`}`;
+}
+const eftOrderCards=()=>Object.keys(ST.eftO||{}).filter(k=>ST.eftO[k].open).map(k=>`<div class="card"><h2>Pay for order #${k} by EFT</h2>${eftPayBox("o",+k,ST.eftO[k])}</div>`).join("");
+const eftOwnerAct=o=>`<div class="note"><b>EFT order.</b> ${o.eft_paid_at?"The customer says they have paid. Check your bank app.":"Waiting for the customer to pay."} Tap <b>Money received</b> only when you can see <b>${R(o.cash_cents)}</b> in your own bank account (reference ORDER${o.id}). A screenshot or a message is not enough. You cannot accept the order until you do.</div><button class="btn" data-a="eftgot" data-k="o" data-id="${o.id}">Money received</button>`;
+const eftWait=j=>{ const mins=j.eft_deadline_at?Math.max(0,Math.ceil((new Date(j.eft_deadline_at)-Date.now())/60000)):0;
+  return `<div class="note"><b>EFT ride: wait for the money.</b> ${j.eft_paid_at?"The customer says they have paid. Check your bank app.":"The customer can see your bank details and will pay now."} Tap <b>Money received</b> only when you can see <b>${R(j.price_cents)}</b> in your own bank account (reference RIDE${j.id}). A screenshot or a message is not enough. You cannot start the trip until you do.</div><button class="btn" data-a="eftgot" data-k="r" data-id="${j.id}">Money received</button>${mins>0?`<p style="margin:6px 0"><small>If the customer has not paid in about ${mins} minute${mins===1?"":"s"}, you can cancel this ride.</small></p>`:`<button class="btn ghost" style="margin-top:8px" data-a="eftrelease" data-id="${j.id}">Customer did not pay: cancel this ride</button>`}`; };
+const eftSetup=()=>{ if(!ST.myEft) return ""; const f=ST.form, on=!!f.efton;
+  return `<div class="card"><h2>Take EFT payments</h2><p style="margin:4px 0 8px"><small>Customers can pay you by EFT instead of cash. Your bank details are shown only to a customer who has placed an order with you, or whose ride you have accepted, so they can pay you. You tap Money received only after you see the money in your own bank account. Eezy Kasi never holds this money.</small></p>
+  <label class="chk"><input type="checkbox" data-a="chk" data-k="efton" ${on?"checked":""}><span>I take EFT payments</span></label>
+  ${fld("eftname","Account holder name","Name on the account")}${fld("eftbank","Bank","e.g. FNB, Capitec")}${sel("efttype","Account type",BANK_TYPES.map(x=>[x,x]))}${fld("eftnum","Account number","Digits only")}${fld("eftbranch","Branch code (optional)","e.g. 250655")}
+  <button class="btn" data-a="eftsave">Save EFT details</button></div>`; };
+const ridePaySel=()=>{ const d=ST.rd||{}, e=d.pay==="eft";
+  return `<div class="seg" role="tablist"><button role="tab" aria-checked="${!e}" data-a="rdpay" data-v="cash">Pay cash</button><button role="tab" aria-checked="${e}" data-a="rdpay" data-v="eft">Pay by EFT</button></div>${e?`<div class="note"><b>How EFT works:</b> you can only pay after a driver accepts your ride. The driver's bank details then appear on this screen. Pay, tap I have paid, and the driver will start the trip once the money is in their account. Only drivers who take EFT will see this ride, so it may take a little longer to find one. If you have not paid within 10 minutes of a driver accepting, the driver can cancel the ride.</div>`:""}`; };
 async function loadCust(){
   ST.shops=[];
   if(locId){
@@ -276,7 +319,7 @@ async function loadCust(){
   }
   ST.mine=await sb(`/rest/v1/orders?select=id,status,cash_cents&customer_id=eq.${sess.user.id}&order=id.desc&limit=8`);
   ST.pickMine=new Set(); try{ (await sb(`/rest/v1/orders?select=id&customer_id=eq.${sess.user.id}&pickup=eq.true&order=id.desc&limit=30`)).forEach(x=>ST.pickMine.add(x.id)); }catch(e){}
-  await loadTrips();
+  await loadEftShops(); await loadEftOrders(); await loadTrips();
 }
 async function loadMenu(shop){
   ST.shop=shop; ST.cart={};
@@ -294,6 +337,8 @@ async function loadOwner(){
     sb(base+"&select=id,cash_cents,fee_cents,credit_cents,net_due_cents&status=eq.delivered&payment_id=is.null&order=id")]);
   ST.orders=r[0]; ST.menu=r[1]; ST.due=r[2][0]||{}; ST.stmt=r[3];
   ST.pickIds=new Set(); try{ (await sb(`/rest/v1/orders?select=id&shop_id=eq.${id}&pickup=eq.true&status=in.(placed,accepted)`)).forEach(x=>ST.pickIds.add(x.id)); }catch(e){}
+  try{ const ef=await sb(base+"&select=id,pay_method,eft_paid_at,eft_received_at&status=in.(placed,accepted)"); ef.forEach(x=>{ const o=ST.orders.find(y=>y.id===x.id); if(o){ o.pay_method=x.pay_method; o.eft_paid_at=x.eft_paid_at; o.eft_received_at=x.eft_received_at; } }); }catch(e){}
+  if(!ST.eftLoaded) await loadMyEft();
   ST.myPosts=[]; try{ ST.myPosts=await sb(`/rest/v1/shop_posts?select=id,caption,image_url,before_url&shop_id=eq.${id}&order=id.desc`); }catch(e){}
 }
 async function loadAdmin(){
@@ -372,6 +417,7 @@ async function loadTrips(){
   ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_colour,plate_number,photo_path,car_photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
   await signPhotos(ST.offers.map(o=>o.drivers).filter(Boolean));
   ST.pins={}; ST.favs=[];
+  ST.tripEft={}; try{ if(ids.length){ const ef=await sb(`/rest/v1/transport_requests?select=id,pay_method,eft_paid_at,eft_received_at,eft_deadline_at&id=in.(${ids.join(",")})`); for(const x of ef){ if(x.pay_method!=="eft") continue; const e=ST.tripEft[x.id]={paid:!!x.eft_paid_at,received:!!x.eft_received_at,deadline:x.eft_deadline_at}; const t=ST.trips.find(y=>y.id===x.id); if(t&&t.status==="accepted"&&!e.received){ try{ e.d=await rpc("get_pay_details",{p_kind:"ride",p_id:x.id}); }catch(er){} } } } }catch(e){}
   try{ ((await rpc("my_car_pins",{}))||[]).forEach(x=>{ST.pins[x.request_id]=x.pin;}); }catch(e){}
   try{ const f=await sb("/rest/v1/favourite_drivers?select=driver_id&order=created_at");
     if(f.length){ const d=await sb("/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number&id=in.("+f.map(x=>x.driver_id).join(",")+")"); ST.favs=d; } }catch(e){}
@@ -398,6 +444,8 @@ async function loadDriver(){
   ST.me=r[0][0]||null; ST.myRoutes=r[1]; ST.openReqs=r[2].filter(x=>x.ride_type!=="car"); ST.rides=[]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
   if(ST.jobs.length){ const c=await sb(`/rest/v1/transport_contacts?select=request_id,pickup_text&request_id=in.(${ST.jobs.map(j=>j.id).join(",")})`); c.forEach(x=>{ST.contacts[x.request_id]=x;}); }
   try{ if(ST.jobs.length){ const L=await sb("/rest/v1/transport_requests?select=id,pickup_landmark&id=in.("+ST.jobs.map(j=>j.id).join(",")+")"); L.forEach(x=>{ const j=ST.jobs.find(y=>y.id===x.id); if(j) j.pickup_landmark=x.pickup_landmark; }); } }catch(e){}
+  try{ if(ST.jobs.length){ const ef=await sb("/rest/v1/transport_requests?select=id,pay_method,eft_paid_at,eft_received_at,eft_deadline_at&id=in.("+ST.jobs.map(j=>j.id).join(",")+")"); ef.forEach(x=>{ const j=ST.jobs.find(y=>y.id===x.id); if(j){ j.pay_method=x.pay_method; j.eft_paid_at=x.eft_paid_at; j.eft_received_at=x.eft_received_at; j.eft_deadline_at=x.eft_deadline_at; } }); } }catch(e){}
+  if(!ST.eftLoaded&&ST.me&&ST.me.vehicle_type==="car") await loadMyEft();
   ST.earn=null; try{ const e=await rpc("my_earnings",{}); ST.earn={}; (e||[]).forEach(x=>{ST.earn[x.period]=x;}); }catch(e){}
   ST.rideErr="";
   if(ST.online&&ST.me&&ST.me.vehicle_type==="car"){
@@ -445,23 +493,25 @@ const reload=()=>user.tab==="pend"?refreshPending():user.tab==="own"?loadOwner()
 
 // ---- screens ----
 function food(){
-  const mine=ST.mine.map(o=>{const pk=ST.pickMine&&ST.pickMine.has(o.id), t=(pk&&o.status==="delivered")?["Collected","ok"]:tagFor(o.status);return `<div class="row"><span>Order #${o.id}${pk?" (pick up)":""} · ${R(o.cash_cents)}</span><span class="tag ${t[1]}">${t[0]}</span></div>`}).join("");
+  const mine=ST.mine.map(o=>{const pk=ST.pickMine&&ST.pickMine.has(o.id), t=(pk&&o.status==="delivered")?["Collected","ok"]:tagFor(o.status);return `<div class="row"><span>Order #${o.id}${pk?" (pick up)":""}${(ST.eftO&&ST.eftO[o.id])?" (EFT)":""} · ${R(o.cash_cents)}</span><span class="tag ${t[1]}">${t[0]}</span></div>`}).join("");
   const hist=mine?`<div class="card"><h2>Your orders</h2>${mine}</div>`:"";
   if(!ST.shop){
     const cat=CATS[cview]||CATS.food;
     const list=ST.shops.filter(s=>(s.category||"food")===cat.k).map(s=>`<div class="row"><b>${esc(s.name)}</b><span><button class="sm" data-a="chatwith" data-v="${s.owner_id}">Message</button> <button class="sm" data-a="callback" data-v="${s.owner_id}" data-n="${esc(s.name)}">📞 Call me back</button> <button class="sm" data-a="shop" data-id="${s.id}">Order</button></span></div>`).join("");
-    return `<h1>${esc(cat.l)} in ${esc(loc)}</h1><p class="sub">${DELIVERY_ON?"You pay cash when your order arrives.":(cat.k==="food"?"Delivery is paused for now. Pick up at the shop and pay cash when you collect.":"Delivery is paused for now. Message the shop to arrange.")}</p>${msgs()}<div class="card">${list||"<small>No "+esc(cat.l.toLowerCase())+" businesses are open in this area yet.</small>"}</div>${hist}`;
+    return `<h1>${esc(cat.l)} in ${esc(loc)}</h1><p class="sub">${DELIVERY_ON?"You pay cash when your order arrives.":(cat.k==="food"?"Delivery is paused for now. Pick up at the shop and pay cash when you collect.":"Delivery is paused for now. Message the shop to arrange.")}</p>${msgs()}${eftOrderCards()}<div class="card">${list||"<small>No "+esc(cat.l.toLowerCase())+" businesses are open in this area yet.</small>"}</div>${hist}`;
   }
   const canPick=(ST.shop.category||"food")==="food"&&cview==="food", pick=canPick&&(DELIVERY_ON?!!ST.pickup:true), pr=i=>pick?(i.pickup_price_cents||i.shop_price_cents):i.app_price_cents;
   const total=ST.menu.reduce((a,i)=>a+(ST.cart[i.id]||0)*pr(i),0);
   const cur=ST.item?ST.menu.find(x=>x.id===ST.item):null; if(cur) return itemDetail(cur,pr,total); if(ST.item) ST.item=null;
   const items=menuTabs()+menuGrid(pr);
   const gal=(ST.posts&&ST.posts.length)?`<h2>${cview==="beauty"?"Recent work":"Menu and pictures"}</h2>${ST.posts.map(x=>postCard(x)).join("")}`:"", top=cview==="beauty"?gal:"", bottom=cview==="beauty"?"":gal;
-  return `<h1>${esc(ST.shop.name)}</h1><p class="sub">${pick?(DELIVERY_ON?"Pick up at the shop. You pay cash when you collect.":"Delivery is not available yet. Pick up at the shop and pay cash when you collect."):(DELIVERY_ON?"Delivered in "+esc(loc)+". You pay cash when it arrives.":"Delivery is paused for now. Message the shop to arrange your order.")}</p>${msgs()}${top}
+  const eftOk=eftOn(ST.shop.id)&&(pick||DELIVERY_ON), payE=eftOk&&ST.paym==="eft";
+  const paySel=eftOk?`<div class="seg" role="tablist"><button role="tab" aria-checked="${!payE}" data-a="paym" data-v="cash">Pay cash</button><button role="tab" aria-checked="${payE}" data-a="paym" data-v="eft">Pay by EFT</button></div>${payE?`<div class="note">After you place the order, the shop's bank details appear at the top of this screen. Pay, then tap I have paid. The shop starts your order once the money is in their account.</div>`:""}`:"";
+  return `<h1>${esc(ST.shop.name)}</h1><p class="sub">${pick?(DELIVERY_ON?"Pick up at the shop. You pay cash when you collect.":"Delivery is not available yet. Pick up at the shop and pay cash when you collect."):(DELIVERY_ON?"Delivered in "+esc(loc)+". You pay cash when it arrives.":"Delivery is paused for now. Message the shop to arrange your order.")}</p>${msgs()}${eftOrderCards()}${top}
   <div class="card">${(canPick&&DELIVERY_ON)?`<div class="seg" role="tablist"><button role="tab" aria-checked="${!pick}" data-a="pmode" data-v="deliver">Delivery</button><button role="tab" aria-checked="${pick}" data-a="pmode" data-v="pickup">Pick up</button></div>`:""}${items||"<small>No items on the menu yet.</small>"}
-    ${pick?`<div class="note">You collect your order at <b>${esc(ST.shop.name)}</b> and pay cash there. Pick up prices include a small app fee.</div>`:(DELIVERY_ON?`<label for="addr">Delivery address</label>
+    ${pick?`<div class="note">You collect your order at <b>${esc(ST.shop.name)}</b> and pay ${payE?"by EFT before you collect":"cash there"}. Pick up prices include a small app fee.</div>`:(DELIVERY_ON?`<label for="addr">Delivery address</label>
     <input id="addr" type="text" style="width:100%" value="${esc(ST.address)}" data-a="addr" placeholder="House number and street">`:`<div class="note">Delivery is paused for now. Tap Messages to talk to the shop.</div>`)}
-    <div class="row"><b>${pick?"Pay cash at pick-up":"Pay cash on delivery"}</b><b>${R(total)}</b></div>
+    ${paySel}<div class="row"><b>${payE?"Pay by EFT":(pick?"Pay cash at pick-up":"Pay cash on delivery")}</b><b>${R(total)}</b></div>
     <button class="btn" data-a="order" ${(total&&(DELIVERY_ON||pick))?"":"disabled"}>Place order</button>
     <button class="btn ghost" data-a="shops">Back to shops</button></div>${bottom}${hist}`;
 }
@@ -641,11 +691,11 @@ function favPick(){
 }
 function rideForm(){
   const d=ST.rd, q=d.quote;
-  return `<h1>Request a car ride</h1><p class="sub">Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.</p>${msgs()}
+  return `<h1>Request a car ride</h1><p class="sub">Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash, or by EFT if you choose that below.</p>${msgs()}
   <div class="card">${pointBox("pickup","Pick-up")}${pointBox("drop","Drop-off")}</div>
-  ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div>${q.surcharge_cents>0?`<div class="row"><span>Includes weekend rate (Fri 15:30 to Sun 17:00)</span><b>${R(q.surcharge_cents)}</b></div>`:""}<div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}You pay the driver in cash when you arrive.</div></div>`:""}
+  ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div>${q.surcharge_cents>0?`<div class="row"><span>Includes weekend rate (Fri 15:30 to Sun 17:00)</span><b>${R(q.surcharge_cents)}</b></div>`:""}<div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}${d.pay==="eft"?"You pay the driver by EFT before the trip starts.":"You pay the driver in cash when you arrive."}</div></div>`:""}
   <div class="card">${landmarkBlock()}${favPick()}<div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
-  <button class="btn" data-a="rdsend" ${q?"":"disabled"}>Request this ride</button><button class="btn ghost" data-a="rdback">Back</button></div>`;
+  ${ridePaySel()}<button class="btn" data-a="rdsend" ${q?"":"disabled"}>Request this ride</button><button class="btn ghost" data-a="rdback">Back</button></div>`;
 }
 function driveTab(){
   if(ST.rd) return rideForm();
@@ -655,13 +705,16 @@ function driveTab(){
     if(t.status==="open"&&t.ride_type==="car") body='<div class="note">Waiting for a car driver to accept. Your fixed price is <b>'+R(t.price_cents)+'</b> ('+esc(t.distance_km)+' km). You will hear a sound when a driver accepts.</div>';
     else if(t.status==="open") body=offs.length?offs.map(o=>{const ok=t.budget_cents&&o.price_cents<=t.budget_cents;
       return `<div class="note">${person(o.drivers||{})}<div class="row"><b>${R(o.price_cents)}</b>${ok?'<span class="tag ok">Within your budget</span>':""}</div><button class="sm" data-a="chatwith" data-v="${o.driver_id}">Message driver</button><button class="btn" data-a="choose" data-id="${t.id}" data-v="${o.driver_id}">Choose this driver</button></div>`}).join(""):'<div class="note">No driver has accepted yet. Tap Refresh in a little while.</div>';
-    else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>Pay the driver in cash</span><b>${R(t.price_cents)}</b></div><p style="margin:6px 0"><small>The driver will text or send you a voice note in Messages.</small></p><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button>${t.ride_type!=="car"&&(t.status==="accepted"||t.status==="started")?` <button class="sm" data-a="callback" data-k="driver" data-v="${chosen.driver_id}" data-n="${esc((chosen.drivers||{}).full_name||"your driver")}">📞 Call me back</button>`:""}</div>`;
+    else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>${(ST.tripEft||{})[t.id]?"Pay the driver by EFT":"Pay the driver in cash"}</span><b>${R(t.price_cents)}</b></div><p style="margin:6px 0"><small>The driver will text or send you a voice note in Messages.</small></p><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button>${t.ride_type!=="car"&&(t.status==="accepted"||t.status==="started")?` <button class="sm" data-a="callback" data-k="driver" data-v="${chosen.driver_id}" data-n="${esc((chosen.drivers||{}).full_name||"your driver")}">📞 Call me back</button>`:""}</div>`;
+    const te=(ST.tripEft||{})[t.id];
+    if(te&&t.status==="open") body+='<div class="note">You chose <b>EFT</b>. When a driver accepts, their bank details appear here. The driver starts the trip once the money reaches their account.</div>';
+    if(te&&t.status==="accepted") body+=`<div class="card"><h2>Pay your driver by EFT</h2>${eftPayBox("r",t.id,te)}</div>`;
     if(t.status==="accepted"&&t.ride_type==="car"&&ST.pins&&ST.pins[t.id]) body+=`<div class="card" style="text-align:center;border:2px solid var(--brand,#0a7)"><small>Your trip PIN</small><div style="font-size:40px;font-weight:800;letter-spacing:10px;margin:4px 0">${esc(ST.pins[t.id])}</div><small>Check the car and the driver's photo, then give the driver this PIN when you get in. The trip cannot start without it. Never send it by message.</small></div>`;
     if(t.status==="completed"&&t.ride_type==="car"&&chosen&&!(ST.favs||[]).some(d=>d.id===chosen.driver_id)) body+=`<button class="btn ghost" data-a="favon" data-v="${esc(chosen.driver_id)}">Save ${esc((chosen.drivers||{}).full_name||"this driver")} as my regular driver</button>`;
     const act=(t.status==="accepted"||t.status==="started")?`<button class="btn" data-a="arrived" data-id="${t.id}">I have arrived safely</button>`:"";
     const can=(t.status==="open"||t.status==="accepted")?(cancelling===t.id?`<select id="why"><option>Changed my mind</option><option>Driver not answering</option><option>Found another driver</option></select><button class="btn ghost" data-a="docanceltrip" data-id="${t.id}">Confirm cancel</button>`:`<button class="btn ghost" data-a="canceltrip" data-id="${t.id}">Cancel</button>`):"";
     return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?"Car ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
-  return `<h1>Request a driver</h1><p class="sub">Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a car ride</button><button class="btn ghost" style="margin-top:8px" data-a="newreq">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
+  return `<h1>Request a driver</h1><p class="sub">Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash, or by EFT if you choose that. Tap I have arrived safely when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a car ride</button><button class="btn ghost" style="margin-top:8px" data-a="newreq">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
 }
 function reqForm(){
   return `<h1>Request a driver</h1>${msgs()}<div class="card">
@@ -694,12 +747,12 @@ function driver(){
   const d=ST.dDue||{}, due=d.amount_due_cents||0, offered=new Set(ST.myOffers.map(o=>o.request_id));
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Eezy Kasi.</div>':"");
   const carCard=me.car_photo_path?"":carCardHtml();
-  const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':x.same_area?'<span class="tag ok">From your kasi</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
+  const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.pay_method==="eft"?'<span class="tag">Pays by EFT</span> ':""}${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':x.same_area?'<span class="tag ok">From your kasi</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
   const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and rides from your own place show first. New ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
     return `<div class="card"><div class="row"><b>${esc(r.from_place)} → ${esc(r.to_place)}</b><b>${rt?R(rt.price_cents):""}</b></div><small>${esc(r.goods_type)}: ${esc(r.description||"")}<br>When: ${esc(r.when_text||"-")}${r.budget_cents?"<br>Customer budget: "+R(r.budget_cents):""}</small>${offered.has(r.id)?'<div class="note">You accepted. Waiting for the customer to choose.</div>':`<button class="btn" data-a="offer" data-id="${r.id}">Accept at ${R(rt?rt.price_cents:0)}</button>`}</div>`}).join("");
   const jobs=ST.jobs.map(j=>{const g=tagFor(j.status), c=ST.contacts[j.id]||{};
-    const act=j.status==="accepted"?(j.ride_type==="car"?`<label for="f_pin${j.id}">Ask the customer for their 4-digit PIN</label><input id="f_pin${j.id}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="width:100%;font-size:28px;letter-spacing:10px;text-align:center" value="${esc(ST.form["pin"+j.id]||"")}" data-a="form" data-k="pin${j.id}" placeholder="0000"><button class="btn" data-a="jstartpin" data-id="${j.id}">Start trip</button>`:`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`):'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
+    const act=j.status==="accepted"?(j.ride_type==="car"?((j.pay_method==="eft"&&!j.eft_received_at)?eftWait(j):`<label for="f_pin${j.id}">Ask the customer for their 4-digit PIN</label><input id="f_pin${j.id}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="width:100%;font-size:28px;letter-spacing:10px;text-align:center" value="${esc(ST.form["pin"+j.id]||"")}" data-a="form" data-k="pin${j.id}" placeholder="0000"><button class="btn" data-a="jstartpin" data-id="${j.id}">Start trip</button>`):`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`):'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
     return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}${j.pickup_landmark?"<br>Landmark: <b>"+esc(j.pickup_landmark)+"</b>":""}<br>When: ${esc(j.when_text||"-")}<br>The customer will text or send you a voice note. Cell numbers are not shared.</small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}</div>`}).join("");
   const routes=ST.myRoutes.map(p=>`<div class="row"><span>${esc(p.from_place)} → ${esc(p.to_place)}</span><span><b>${R(p.price_cents)}</b> <button class="sm" data-a="delroute" data-id="${p.id}">Remove</button></span></div>`).join("");
   if(xtab==="req"){
@@ -714,7 +767,7 @@ function driver(){
     <div class="row"><span>Amount due</span><b class="big">${R(due)}</b></div>
     <div class="note">Pay your balance within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</div>
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
-  ${earnCard()}${carCard}
+  ${earnCard()}${carCard}${me.vehicle_type==="car"?eftSetup():""}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
   ${me.vehicle_type==="car"?"":`<h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
     ${placeSel("rf","From")}${placeSel("rt","To")}${fld("pprice","Price in rand","e.g. 200","number")}
@@ -731,9 +784,10 @@ function owner(){
     const t=tagFor(o.status), what=(o.order_items||[]).map(l=>l.quantity+"× "+esc(l.name)).join(", ");
     const pk=ST.pickIds&&ST.pickIds.has(o.id), cr=pk?0:Math.round(o.cash_cents*0.05), net=pk?(o.cash_cents-o.shop_cents):(o.cash_cents-o.shop_cents)-cr; let act="";
     if(cancelling===o.id) act=`<select id="why"><option>Customer not answering</option><option>Out of stock</option><option>Shop closed</option><option>Too far to deliver</option></select><button class="btn ghost" data-a="docancel" data-id="${o.id}">Confirm cancel</button>`;
-    else act=(o.status==="placed"?`<button class="btn" data-a="accept" data-id="${o.id}">Accept order</button>`:`<button class="btn" data-a="deliver" data-id="${o.id}">${pk?"Collected — cash received":"Delivered — cash collected"}</button>`)+`<button class="btn ghost" data-a="cancel" data-id="${o.id}">Cancel</button>`;
-    return `<div class="card"><div class="row"><b>Order #${o.id}</b><span>${pk?'<span class="tag">Pick up</span> ':""}<span class="tag ${t[1]}">${t[0]}</span></span></div><p style="margin:4px 0">${what}</p><p style="margin:4px 0"><small>${pk?"<b>PICK UP</b>: the customer collects at your shop":"Deliver to: "+esc(o.delivery_address)}</small> <button class="sm" data-a="chatwith" data-v="${o.customer_id}">Message customer</button></p>
-      <p class="note" style="margin:6px 0">${pk?`The customer pays <b>${R(o.cash_cents)}</b> cash at your shop. You keep your full price of ${R(o.shop_cents)}. The extra ${R(net)} is the app fee the customer pays on top, and you pass it on to Eezy Kasi.`:`Collect <b>${R(o.cash_cents)}</b> cash. You keep ${R(o.shop_cents+cr)}. You owe ${R(net)}.`}</p>${act}</div>`;}).join("");
+    else if(o.pay_method==="eft"&&!o.eft_received_at) act=eftOwnerAct(o)+`<button class="btn ghost" data-a="cancel" data-id="${o.id}">Cancel</button>`;
+    else act=(o.status==="placed"?`<button class="btn" data-a="accept" data-id="${o.id}">Accept order</button>`:`<button class="btn" data-a="deliver" data-id="${o.id}">${o.pay_method==="eft"?(pk?"Collected — handed over":"Delivered"):(pk?"Collected — cash received":"Delivered — cash collected")}</button>`)+`<button class="btn ghost" data-a="cancel" data-id="${o.id}">Cancel</button>`;
+    return `<div class="card"><div class="row"><b>Order #${o.id}</b><span>${pk?'<span class="tag">Pick up</span> ':""}${o.pay_method==="eft"?'<span class="tag">EFT</span> ':""}<span class="tag ${t[1]}">${t[0]}</span></span></div><p style="margin:4px 0">${what}</p><p style="margin:4px 0"><small>${pk?"<b>PICK UP</b>: the customer collects at your shop":"Deliver to: "+esc(o.delivery_address)}</small> <button class="sm" data-a="chatwith" data-v="${o.customer_id}">Message customer</button></p>
+      <p class="note" style="margin:6px 0">${pk?`The customer pays <b>${R(o.cash_cents)}</b> ${o.pay_method==="eft"?"by EFT into your account":"cash at your shop"}. You keep your full price of ${R(o.shop_cents)}. The extra ${R(net)} is the app fee the customer pays on top, and you pass it on to Eezy Kasi.`:`${o.pay_method==="eft"?"The customer pays":"Collect"} <b>${R(o.cash_cents)}</b> ${o.pay_method==="eft"?"by EFT into your account":"cash"}. You keep ${R(o.shop_cents+cr)}. You owe ${R(net)}.`}</p>${act}</div>`;}).join("");
   const prices=ST.menu.map(i=>`<div class="row"><span>${esc(i.name)}</span><span>Shop R <input type="number" min="1" step="0.5" value="${i.shop_price_cents/100}" data-a="price" data-id="${i.id}" aria-label="Shop price for ${esc(i.name)}"> → delivery <b>${R(i.app_price_cents)}</b> · pick up <b>${R(i.pickup_price_cents||i.shop_price_cents)}</b></span></div>`).join("");
   return `<h1>${esc(sh.name)}</h1><p class="sub">Pay on the 1st of every month.</p>${bn}${msgs()}
   <div class="card"><h2>Amount due</h2>
@@ -745,7 +799,7 @@ function owner(){
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button>
     <button class="btn ghost" data-a="stmt">View monthly statement</button></div>
   <h2>Incoming orders</h2>${open||'<div class="card"><small>No open orders. New orders show up here when you tap Refresh.</small></div>'}
-  <h2>Your menu prices</h2><div class="card">${prices||"<small>No menu items yet.</small>"}<div class="note">Customers pay the delivery price or the pick up price in cash. You always keep your full shop price (plus the delivery credit on deliveries).</div></div>`;
+  <h2>Your menu prices</h2><div class="card">${prices||"<small>No menu items yet.</small>"}<div class="note">Customers pay the delivery price or the pick up price in cash. You always keep your full shop price (plus the delivery credit on deliveries).</div></div>${eftSetup()}`;
 }
 function stmtScreen(){
   const u=ST.stmt, t=k=>R(u.reduce((a,o)=>a+(o[k]||0),0));
@@ -874,7 +928,7 @@ document.addEventListener("toggle",e=>{ const d=e.target; if(d&&d.dataset&&d.dat
 
 // ---- sounds and alerts ----
 let AC=null, soundOn=(()=>{ try{ return localStorage.getItem("inanda_snd")!=="0"; }catch(e){ return true; } })();
-let prevUnread=null, seenOrders=null, seenReqs=null;
+let prevUnread=null, seenOrders=null, seenReqs=null, seenPaid=null;
 function unlockAudio(){ try{ if(!AC){ const C=window.AudioContext||window.webkitAudioContext; if(C) AC=new C(); } if(AC&&AC.state==="suspended") AC.resume(); }catch(e){} }
 ["pointerdown","keydown","touchstart"].forEach(ev=>addEventListener(ev,unlockAudio,{passive:true}));
 function ding(urgent){
@@ -909,16 +963,26 @@ async function pollWork(){
       const ids=(ST.orders||[]).filter(o=>o.status==="placed").map(o=>o.id);
       if(seenOrders&&ids.some(i=>!seenOrders.includes(i))) notifyIncoming(true);
       seenOrders=ids;
+      const pdo=(ST.orders||[]).filter(o=>o.pay_method==="eft"&&o.eft_paid_at&&!o.eft_received_at).map(o=>o.id);
+      if(seenPaid&&pdo.some(i=>!seenPaid.includes(i))) notifyIncoming(true);
+      seenPaid=pdo;
     }else if(user.tab==="drv"){
       await loadDriver();
       const ids=(ST.openReqs||[]).concat(ST.rides||[]).map(r=>r.id);
       if(seenReqs&&ids.some(i=>!seenReqs.includes(i))) notifyIncoming(true);
       seenReqs=ids;
+      const pdj=(ST.jobs||[]).filter(j=>j.pay_method==="eft"&&j.eft_paid_at&&!j.eft_received_at).map(j=>j.id);
+      if(seenPaid&&pdj.some(i=>!seenPaid.includes(i))) notifyIncoming(true);
+      seenPaid=pdj;
     }else if(user.tab==="cust"&&cview==="drive"&&!ST.rd&&!ST.req){
-      const prev={}; (ST.trips||[]).forEach(t=>{prev[t.id]=t.status;});
+      const prev={}; (ST.trips||[]).forEach(t=>{prev[t.id]=t.status;}); const pe={}; Object.keys(ST.tripEft||{}).forEach(k=>{pe[k]=ST.tripEft[k].received;});
       await loadTrips();
+      if(Object.keys(ST.tripEft||{}).some(k=>ST.tripEft[k].received&&pe[k]===false)) notifyIncoming();
       if((ST.trips||[]).some(t=>prev[t.id]==="open"&&t.status==="accepted")) notifyIncoming();
       const ae=document.activeElement; if(!(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))&&!cancelling) render();
+    }else if(user.tab==="cust"&&cview!=="drive"&&ST.eftO&&Object.keys(ST.eftO).some(k=>ST.eftO[k].open)){
+      const sig=()=>JSON.stringify(Object.keys(ST.eftO||{}).map(k=>[k,ST.eftO[k].open,ST.eftO[k].paid,ST.eftO[k].received]));
+      const was=sig(); await refreshEftOrders(); if(was!==sig()) notifyIncoming();
     }else return;
     const a=document.activeElement, typing=a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
     const picking=[...document.querySelectorAll("input[type=file]")].some(f=>f.files&&f.files.length);   // keep pictures the owner just chose
@@ -1224,6 +1288,16 @@ const H={
   refresh:()=>go(reload),
   shop:(el,id)=>go(()=>{ST.pickup=false;return loadMenu(ST.shops.find(s=>s.id===id));}),
   pmode:el=>{ST.pickup=el.dataset.v==="pickup";},
+  paym:el=>{ST.paym=el.dataset.v==="eft"?"eft":"cash";},
+  rdpay:el=>{ if(ST.rd) ST.rd.pay=el.dataset.v==="eft"?"eft":"cash"; },
+  eftpaid:(el,id)=>go(async()=>{ const r=el.dataset.k==="r"; await rpc("mark_eft_paid",{p_kind:r?"ride":"order",p_id:id}); if(r) await loadTrips(); else await refreshEftOrders(); ST.note="Thank you. Now wait for the "+(r?"driver":"shop")+" to confirm that the money has arrived."; }),
+  eftgot:(el,id)=>go(async()=>{ const r=el.dataset.k==="r"; await rpc("confirm_eft_received",{p_kind:r?"ride":"order",p_id:id}); if(r) await loadDriver(); else await loadOwner(); ST.note=r?"Money received. You can now start the trip with the customer's PIN.":"Money received. You can now accept the order."; }),
+  eftrelease:(el,id)=>go(async()=>{ if(!confirm("Cancel this ride because the customer did not pay?")) return; await rpc("release_eft_ride",{p_request:id}); await loadDriver(); ST.note="Ride cancelled."; }),
+  eftsave:()=>go(async()=>{ const g=i=>((document.getElementById(i)||{}).value||"").trim(), on=!!ST.form.efton, num=g("f_eftnum").replace(/\s+/g,""), br=g("f_eftbranch").replace(/\s+/g,"");
+    if(on&&(g("f_eftname").length<2||g("f_eftbank").length<2||!/^\d{5,20}$/.test(num))) throw new Error("Type the account holder, the bank and the account number (digits only).");
+    if(br&&!/^\d{4,8}$/.test(br)) throw new Error("The branch code must be digits only.");
+    await rpc("save_eft_details",{p_enabled:on,p_account_name:g("f_eftname"),p_bank_name:g("f_eftbank"),p_account_type:g("f_efttype")||BANK_TYPES[0],p_account_number:num,p_branch_code:br});
+    await loadMyEft(); ST.note=on?"Saved. Customers can now choose to pay you by EFT.":"Saved. EFT is off, so customers can only pay you cash."; }),
   shops:()=>{ST.shop=null;},
   inc:(el,id)=>{ST.cart[id]=(ST.cart[id]||0)+1;}, dec:(el,id)=>{ST.cart[id]=Math.max(0,(ST.cart[id]||0)-1);},
   order:()=>go(async()=>{
@@ -1231,8 +1305,9 @@ const H={
     const pick=(DELIVERY_ON?!!ST.pickup:true)&&(ST.shop.category||"food")==="food"&&cview==="food";
     if(!DELIVERY_ON&&!pick) throw new Error("Delivery is paused for now. Please message the shop to arrange your order.");
     const args={p_shop_id:ST.shop.id,p_address:pick?"":ST.address,p_items:items}; if(pick) args.p_pickup=true;
+    const eft=ST.paym==="eft"&&eftOn(ST.shop.id); if(eft) args.p_pay_method="eft";
     const n=await rpc("place_order",args);
-    ST.cart={}; ST.note=pick?"Order #"+n+" placed. Collect it at the shop and pay cash there.":"Order #"+n+" placed. Pay cash when it arrives."; await loadCust(); }),
+    ST.cart={}; ST.paym="cash"; ST.note=eft?"Order #"+n+" placed. Pay by EFT using the bank details at the top of this screen, then tap I have paid. The shop starts your order once the money is in their account.":pick?"Order #"+n+" placed. Collect it at the shop and pay cash there.":"Order #"+n+" placed. Pay cash when it arrives."; await loadCust(); }),
   accept:(el,id)=>go(async()=>{await rpc("set_order_status",{p_order:id,p_status:"accepted"});await loadOwner();}),
   deliver:(el,id)=>go(async()=>{await rpc("set_order_status",{p_order:id,p_status:"delivered"});await loadOwner();}),
   cancel:(el,id)=>{cancelling=id;},
@@ -1257,9 +1332,9 @@ const H={
   rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
     const q2=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2)});
     if(q2.price_cents!==d.quote.price_cents){ d.quote=q2; throw new Error("The price has changed to "+R(q2.price_cents)+" because the weekend rate has just "+(q2.surcharge_cents>0?"started":"ended")+". Please check it and tap Request again."); }
-    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null});
+    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null,...(d.pay==="eft"?{p_pay_method:"eft"}:{})});
     f.rdland=""; f.rdnote=""; f.rdpref="";
-    ST.rd=null; await loadTrips(); ST.note="Ride requested. We are asking drivers from your own place first, then drivers nearby. You will hear a sound when a driver accepts."; }),
+    ST.rd=null; await loadTrips(); ST.note=(d.pay==="eft"?"When a driver accepts, their bank details appear here so you can pay. ":"")+"Ride requested. We are asking drivers from your own place first, then drivers nearby. You will hear a sound when a driver accepts."; }),
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
     const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
   goonline:()=>go(async()=>{ST.online=true; await loadDriver();}),
@@ -1477,9 +1552,9 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-10-28";
+const LEGAL_VERSION="policy-2026-11-05";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
-<p class="sub" style="margin:0 0 12px">Last updated: 28 October 2026.</p>
+<p class="sub" style="margin:0 0 12px">Last updated: 5 November 2026.</p>
 <h3>Who we are</h3>
 <p>Eezy Kasi (“we”, “us”) is a web app that helps people in Inanda order from local businesses and arrange transport. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Eezy Kasi is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
 <p>Our address: 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310.</p>
@@ -1498,6 +1573,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <li>Voice notes you send in chats. They are kept privately and can only be played by the people in that chat and by the admin when a chat is reported or when we need to keep people safe.</li> <li>Businesses: the pictures, before-and-after photos and short videos you post (for example menus, specials and your work), and the captions and titles you write. A picture or video can show a person, so please read the picture and video rules in Part 2.</li> <li>When you upload a photo, we record that you confirmed you have permission to use it, and when you did so.</li>
 <li>A security check (Cloudflare Turnstile) runs when you log in or sign up, to tell people from bots. It may use details about your device and browser to do this.</li>
 <li>Alerts, only if you turn them on: an alert address for your phone, which is a code made by your phone’s own alert service. We use it only to send you alerts about new messages, orders and trips. You can turn alerts off any time with the bell at the top, and logging out stops them on that phone.</li>
+<li>Shops and car drivers who choose to take EFT payments: the bank details you type (the name on the account, the bank, the account type, the account number and the branch code). We show them only to a customer who has placed an order with you, or whose ride you have accepted, so that the customer can pay you, and to nobody else. Customers pay you directly. We never hold, receive or move that money.</li>
 <li>Your wish list is saved only on your own phone. We never receive it.</li>
 </ul>
 <h3>Why we use it</h3>
@@ -1523,7 +1599,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h3>How long we keep it</h3>
 <p>We keep your information while your account is active. Pictures, photos and videos stay up until the business or we remove them, or until the business account is closed. If you ask us to delete your account, we delete your information, except what we must keep by law or to settle a dispute, such as payment records.</p>
 <h3>Keeping it safe</h3>
-<p>Logins are protected by passwords, and the database is set up so that people can only see what they are allowed to see. Please keep your password private and never send money or passwords in a chat. No system is perfectly safe. If something goes wrong that could harm you, we will tell you and the Information Regulator.</p>
+<p>Logins are protected by passwords, and the database is set up so that people can only see what they are allowed to see. Please keep your password private and never send money or passwords in a chat. Bank details for EFT are shown only on the order or ride screen, never in a chat. No system is perfectly safe. If something goes wrong that could harm you, we will tell you and the Information Regulator.</p>
 <h3>Your rights</h3>
 <p>You can ask us to show you what we hold about you, to correct it, or to delete it, and you can object to how we use it. If you appear in a photo or video and want it taken down, tell us and we will remove it. Email or phone us. You can also complain to the Information Regulator: enquiries@inforegulator.org.za, 010 023 5200, inforegulator.org.za.</p>
 <h3>Information Officer</h3>
@@ -1535,14 +1611,16 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <h3>Using the app</h3>
 <p>Eezy Kasi connects customers with local businesses and drivers. We (Inanda Business Enterprise Services (PTY) LTD, trading as Eezy Kasi) are the platform. Shops sell their own goods, and drivers work for themselves. They do not work for us. Please give true details and keep your password private. You are responsible for what happens on your account.</p>
 <h3>Customers</h3>
-<p>Orders and trips are paid in cash, at the prices shown in the app. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Give your trip PIN only to the driver in the car you booked, after you have checked the car and the driver’s photo. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
-${DELIVERY_ON?"":"<p><b>Shop delivery is not available at the moment.</b> For now, food shops offer pick-up only: you collect your order at the shop and pay cash there. For other shops, please message the shop to arrange your order. We will update these terms and this policy when shop delivery starts. This does not change car rides or goods trips.</p>"}
+<p>Orders and trips are paid in cash, or by EFT when the shop or driver offers it, at the prices shown in the app. If you choose EFT, you pay the shop or driver directly, using the bank details and reference shown in the app after you place the order or after a driver accepts your ride. Pay only the amount shown, and tap “I have paid” only after you really have. A shop starts your order, and a driver starts your trip, only after they see the money in their own account. Eezy Kasi does not hold or handle this money and cannot refund it. If an order or ride is cancelled after you paid, the shop or driver must send your money back, and you can use the Report button if they do not. The price for a goods trip is the price of the driver you choose. The price for a car ride is worked out by the app from the distance, plus a weekend rate of R25 for rides requested from Friday 15:30 until Sunday 17:00 (South African time), and it is shown to you and to the driver before the ride is accepted. It stays the same for that ride. Give your trip PIN only to the driver in the car you booked, after you have checked the car and the driver’s photo. Only tap “I have arrived safely” when the trip is really finished. Please do not place or cancel orders and trips just to waste people’s time.</p>
+${DELIVERY_ON?"":"<p><b>Shop delivery is not available at the moment.</b> For now, food shops offer pick-up only: you collect your order at the shop and pay there, in cash or by EFT if the shop offers it. For other shops, please message the shop to arrange your order. We will update these terms and this policy when shop delivery starts. This does not change car rides or goods trips.</p>"}
 <h3>Shops and other businesses</h3>
 <p>Keep your menu, prices and open or paused status correct, and accept or cancel orders honestly. You pay Inanda Business Enterprise Services (PTY) LTD (Eezy Kasi) the amounts shown in the app by the date shown. If an amount is not paid on time, your shop may be paused until it is paid.</p>
 <h3>Construction businesses</h3> <p>Choose the trade and the places you really work in, and keep them up to date. Do not type false or offensive text. We may change or remove it, or remove the business.</p> <h3>Opening hours and prices</h3> <p>Keep your trading hours correct. Customers cannot order while your shop is closed. The price a customer pays in the app is worked out by Eezy Kasi from the shop price you set, and you cannot change it yourself.</p> <h3>Pictures, photos and videos</h3> <p>Businesses can post pictures, before-and-after photos and short videos of their menu, specials and work. By uploading a picture, photo or video you agree to these rules:</p> <ul> <li>Only upload photos you took yourself or have the right to use. Do not use pictures from the internet or from other businesses.</li> <li>If a person can be recognised in a photo (for example by a face, a tattoo or another distinctive feature), you must have that person’s clear permission before you upload it. If you do not have permission, crop the photo or choose another one.</li> <li>Do not upload photos that show children (anyone under 18).</li> <li>Before-and-after photos must be real: the same person or job, taken before and after the work, with no editing that changes the result. Basic cropping and brightness are fine. Do not promise results you cannot deliver.</li> <li>Do not upload nudity, violence, or anything offensive or illegal. Do not show private details such as ID documents, house numbers, number plates or phone numbers.</li> <li>You stay the owner of your photos. You give Eezy Kasi permission to show them in the app while your account is active.</li> <li>If a person in a photo asks for it to be taken down, remove it straight away, or tell us and we will remove it.</li> </ul> <p>We may remove any photo, and we may suspend an account that breaks these rules. You are responsible for the photos you upload, including having the right permissions. We do not check every photo before it appears.</p> <h3>Drivers</h3>
 <p>You are responsible for your licence, your vehicle, your insurance and any permits you need. We check your details, but we cannot promise that every driver is safe. A driver can only start a car ride by typing the customer’s 4-digit PIN, so do not start a trip without it and never ask a customer to send it by message. Car rides can only be accepted by drivers registered with a car whose position is within a few kilometres of the pick-up, and the first one to accept a ride gets it. Do not fake or change your location: a position that jumps many kilometres in seconds is rejected and recorded, and we may suspend your account. Pay the fee shown in the app within 7 days of each trip. If a trip stays unpaid for more than 7 days, customers stop seeing you until you pay.</p>
 <h3>Payments and fees</h3>
-<p>Customers pay shops and drivers directly, in cash. Shops and drivers pay fees to Inanda Business Enterprise Services (PTY) LTD by EFT, using the bank details and reference shown in the app. Tell us when you have paid. We confirm it once the money reaches our account.</p>
+<p>Customers pay shops and drivers directly, in cash or, where the shop or driver offers it, by EFT into the shop’s or driver’s own bank account. Shops and drivers pay fees to Inanda Business Enterprise Services (PTY) LTD by EFT, using the bank details and reference shown in the app. Tell us when you have paid. We confirm it once the money reaches our account.</p>
+<h3>EFT payments from customers</h3>
+<p>A shop or car driver can choose to take EFT payments. The account must be in your own name or your business’s name. Tap “Money received” only when you can see the money in your own bank account. A screenshot or a message is not proof. Do not accept an order or start a trip before you have confirmed the money, and do not tap “Money received” when you have not received it. If an order or ride is cancelled after a customer paid, you must send the money back. Your fees to Eezy Kasi stay the same whether the customer paid cash or EFT. Eezy Kasi does not hold or handle customer payments. We may suspend an account that takes EFT payments and does not deliver, or that confirms payments falsely.</p>
 <h3>Behaviour</h3>
 <p>Do not use fake-location apps, and do not try to change prices, see information that is not yours, get around the app’s checks, or break into or overload the app. We keep records of this, and we may suspend the account and report it to the police. Be respectful. No abuse, threats, scams, spam or illegal goods. Never ask for or send money, passwords or ID numbers in a chat. Orders with shops must be arranged and paid through the app. Do not ask a shop or customer for their cell number or try to make a deal outside the app. Anyone can report a chat with the Report button.</p>
 <h3>Suspending accounts</h3>
