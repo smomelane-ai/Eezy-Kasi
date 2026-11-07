@@ -1,6 +1,6 @@
 // Service worker for Eezy Kasi.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v89";
+const VERSION = "inanda-v90";
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const ROOT = new URL("./", self.registration.scope).pathname;   // the app's own home page, e.g. "/"
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
