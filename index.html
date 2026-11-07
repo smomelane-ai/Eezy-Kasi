@@ -1556,8 +1556,7 @@ function wishAdd(){
     if(e.target===p){ wishClose(); return; }
     const el=e.target.closest("[data-w]"); if(!el) return; const a=el.dataset.w;
     if(a==="close") wishClose(); else if(a==="add") wishAdd();
-    else if(a==="del"){ WISH=WISH.filter(w=>w.id!==el.dataset.id); wsav
-      e(); wishOpen(false); }
+       else if(a==="del"){ WISH=WISH.filter(w=>w.id!==el.dataset.id); wsave(); wishOpen(false); }
     else if(a==="clear"){ WISH=WISH.filter(w=>!w.done); wsave(); wishOpen(false); }
   });
   p.addEventListener("change",e=>{
