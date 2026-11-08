@@ -326,6 +326,10 @@ const eftSetup=()=>{ if(!ST.myEft) return ""; const f=ST.form, on=!!f.efton;
   <label class="chk"><input type="checkbox" data-a="chk" data-k="efton" ${on?"checked":""}><span>I take EFT payments</span></label>
   ${fld("eftname","Account holder name","Name on the account")}${fld("eftbank","Bank","e.g. FNB, Capitec")}${sel("efttype","Account type",BANK_TYPES.map(x=>[x,x]))}${fld("eftnum","Account number","Digits only")}${fld("eftbranch","Branch code (optional)","e.g. 250655")}
   <button class="btn" data-a="eftsave">Save EFT details</button></div>`; };
+const VEH={car:"Car",bakkie:"Bakkie",truck:"Truck"};
+const isRider=m=>!!m&&(m.vehicle_type==="car"||m.vehicle_type==="bakkie"||m.vehicle_type==="truck");
+const VEH_NOTE={car:"Fixed price for a car ride.",bakkie:"For furniture, building material, livestock and other goods. Say what you are moving in the note below.",truck:"For big loads. Say what you are moving in the note below."};
+const vehPick=()=>{ const v=(ST.rd||{}).veh||"car"; return `<div class="seg" role="tablist">${["car","bakkie","truck"].map(k=>`<button role="tab" aria-checked="${v===k}" data-a="rdveh" data-v="${k}">${VEH[k]}</button>`).join("")}</div><div class="note">${VEH_NOTE[v]||""}</div>`; };
 const ridePaySel=()=>{ const d=ST.rd||{}, e=d.pay==="eft";
   return `<div class="seg" role="tablist"><button role="tab" aria-checked="${!e}" data-a="rdpay" data-v="cash">Pay cash</button><button role="tab" aria-checked="${e}" data-a="rdpay" data-v="eft">Pay by EFT</button></div>${e?`<div class="note"><b>How EFT works:</b> you can only pay after a driver accepts your ride. The driver's bank details then appear on this screen. Pay, tap I have paid, and the driver will start the trip once the money is in their account. Only drivers who take EFT will see this ride, so it may take a little longer to find one. If you have not paid within 10 minutes of a driver accepting, the driver can cancel the ride.</div>`:""}`; };
 async function loadCust(){
@@ -429,7 +433,7 @@ async function openChat(id){
 }
 async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${sess.user.id}`); ST.me=m[0]||null; }
 async function loadTrips(){
-  ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
+  ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km,vehicle_class&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
   const ids=ST.trips.map(t=>t.id);
   ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_colour,plate_number,photo_path,car_photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
   await signPhotos(ST.offers.map(o=>o.drivers).filter(Boolean));
@@ -437,7 +441,7 @@ async function loadTrips(){
   ST.tripEft={}; try{ if(ids.length){ const ef=await sb(`/rest/v1/transport_requests?select=id,pay_method,eft_paid_at,eft_received_at,eft_deadline_at&id=in.(${ids.join(",")})`); for(const x of ef){ if(x.pay_method!=="eft") continue; const e=ST.tripEft[x.id]={paid:!!x.eft_paid_at,received:!!x.eft_received_at,deadline:x.eft_deadline_at}; const t=ST.trips.find(y=>y.id===x.id); if(t&&t.status==="accepted"&&!e.received){ try{ e.d=await rpc("get_pay_details",{p_kind:"ride",p_id:x.id}); }catch(er){} } } } }catch(e){}
   try{ ((await rpc("my_car_pins",{}))||[]).forEach(x=>{ST.pins[x.request_id]=x.pin;}); }catch(e){}
   try{ const f=await sb("/rest/v1/favourite_drivers?select=driver_id&order=created_at");
-    if(f.length){ const d=await sb("/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number&id=in.("+f.map(x=>x.driver_id).join(",")+")"); ST.favs=d; } }catch(e){}
+    if(f.length){ const d=await sb("/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,plate_number,vehicle_type&id=in.("+f.map(x=>x.driver_id).join(",")+")"); ST.favs=d; } }catch(e){}
 }
 async function signPhotos(list){
   const paths=[]; list.forEach(d=>{ if(d.photo_path) paths.push(d.photo_path); if(d.car_photo_path) paths.push(d.car_photo_path); });
@@ -465,7 +469,7 @@ async function loadDriver(){
   if(!ST.eftLoaded&&ST.me&&ST.me.vehicle_type==="car") await loadMyEft();
   ST.earn=null; try{ const e=await rpc("my_earnings",{}); ST.earn={}; (e||[]).forEach(x=>{ST.earn[x.period]=x;}); }catch(e){}
   ST.rideErr="";
-  if(ST.online&&ST.me&&ST.me.vehicle_type==="car"){
+  if(ST.online&&isRider(ST.me)){
     try{ ST.here=await getPos(); const ok=await rpc("check_my_position",{p_lat:ST.here.lat,p_lng:ST.here.lng}); if(ok===false){ ST.online=false; ST.rides=[]; ST.here=null; ST.rideErr="Your location jumped too far, too fast, so the app could not trust it. Go online again when you are at your real position."; } else { ST.rides=(await rpc("open_car_rides",{p_lat:ST.here.lat,p_lng:ST.here.lng}))||[]; } }catch(e){ ST.rideErr=e.message; }
   }
 }
@@ -646,7 +650,7 @@ async function roadKm(a,b){
 async function rdQuote(){
   const d=ST.rd; d.quote=null; if(!d.pickup||!d.drop) return;
   const r=await roadKm(d.pickup,d.drop);
-  d.quote=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+r.km.toFixed(2)});
+  d.quote=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+r.km.toFixed(2),p_vehicle:d.veh||"car"});
   d.km=r.km; d.est=r.est;
 }
 const navLink=(lat,lng,txt)=>lat==null?"":`<a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving" target="_blank" rel="noopener">${txt}</a>`;
@@ -703,12 +707,13 @@ function landmarkBlock(){
   return `<label for="f_rdland">Pick-up landmark (optional)</label><small>Many of our streets have no names. Tell the driver what is next to you.</small><div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">${LANDMARKS.map(l=>`<button type="button" class="sm" data-a="landchip" data-v="${esc(l)}">${esc(l)}</button>`).join("")}</div><input id="f_rdland" type="text" maxlength="80" style="width:100%" value="${esc(ST.form.rdland||"")}" data-a="form" data-k="rdland" placeholder="e.g. Next to Inanda Spar, red gate">`;
 }
 function favPick(){
-  const f=ST.favs||[]; if(!f.length) return "";
+  const vv=(ST.rd||{}).veh||"car"; const f=(ST.favs||[]).filter(d=>(d.vehicle_type||"car")===vv); if(!f.length) return "";
   return sel("rdpref","Ask my regular driver first (they get 60 seconds)",[["","No, any nearby driver"]].concat(f.map(d=>[d.id,d.full_name+" · "+(d.vehicle_colour||"")+" "+(d.vehicle_make||"")])));
 }
 function rideForm(){
   const d=ST.rd, q=d.quote;
-  return `<h1>Request a car ride</h1><p class="sub">Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash, or by EFT if you choose that below.</p>${msgs()}
+  return `<h1>Request a ride</h1><p class="sub">Choose Car, Bakkie or Truck, then where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash, or by EFT if you choose that below.</p>${msgs()}
+  <div class="card">${vehPick()}</div>
   <div class="card">${pointBox("pickup","Pick-up")}${pointBox("drop","Drop-off")}</div>
   ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div>${q.surcharge_cents>0?`<div class="row"><span>Includes weekend rate (Fri 15:30 to Sun 17:00)</span><b>${R(q.surcharge_cents)}</b></div>`:""}<div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}${d.pay==="eft"?"You pay the driver by EFT before the trip starts.":"You pay the driver in cash when you arrive."}</div></div>`:""}
   <div class="card">${landmarkBlock()}${favPick()}<div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
@@ -719,7 +724,7 @@ function driveTab(){
   if(ST.req) return reqForm();
   const trips=ST.trips.map(t=>{
     const g=tagFor(t.status), offs=ST.offers.filter(o=>o.request_id===t.id), chosen=offs.find(o=>o.status==="chosen"); let body="";
-    if(t.status==="open"&&t.ride_type==="car") body='<div class="note">Waiting for a car driver to accept. Your fixed price is <b>'+R(t.price_cents)+'</b> ('+esc(t.distance_km)+' km). You will hear a sound when a driver accepts.</div>';
+    if(t.status==="open"&&t.ride_type==="car") body='<div class="note">Waiting for a '+(VEH[t.vehicle_class]||"car").toLowerCase()+' driver to accept. Your fixed price is <b>'+R(t.price_cents)+'</b> ('+esc(t.distance_km)+' km). You will hear a sound when a driver accepts.</div>';
     else if(t.status==="open") body=offs.length?offs.map(o=>{const ok=t.budget_cents&&o.price_cents<=t.budget_cents;
       return `<div class="note">${person(o.drivers||{})}<div class="row"><b>${R(o.price_cents)}</b>${ok?'<span class="tag ok">Within your budget</span>':""}</div><button class="sm" data-a="chatwith" data-v="${o.driver_id}">Message driver</button><button class="btn" data-a="choose" data-id="${t.id}" data-v="${o.driver_id}">Choose this driver</button></div>`}).join(""):'<div class="note">No driver has accepted yet. Tap Refresh in a little while.</div>';
     else if(chosen) body=`<div class="note">${person(chosen.drivers||{})}<div class="row"><span>${(ST.tripEft||{})[t.id]?"Pay the driver by EFT":"Pay the driver in cash"}</span><b>${R(t.price_cents)}</b></div><p style="margin:6px 0"><small>The driver will text or send you a voice note in Messages.</small></p><button class="sm" data-a="chatwith" data-v="${chosen.driver_id}">Message driver</button>${t.ride_type!=="car"&&(t.status==="accepted"||t.status==="started")?` <button class="sm" data-a="callback" data-k="driver" data-v="${chosen.driver_id}" data-n="${esc((chosen.drivers||{}).full_name||"your driver")}">📞 Call me back</button>`:""}</div>`;
@@ -730,8 +735,8 @@ function driveTab(){
     if(t.status==="completed"&&t.ride_type==="car"&&chosen&&!(ST.favs||[]).some(d=>d.id===chosen.driver_id)) body+=`<button class="btn ghost" data-a="favon" data-v="${esc(chosen.driver_id)}">Save ${esc((chosen.drivers||{}).full_name||"this driver")} as my regular driver</button>`;
     const act=(t.status==="accepted"||t.status==="started")?`<button class="btn" data-a="arrived" data-id="${t.id}">I have arrived safely</button>`:"";
     const can=(t.status==="open"||t.status==="accepted")?(cancelling===t.id?`<select id="why"><option>Changed my mind</option><option>Driver not answering</option><option>Found another driver</option></select><button class="btn ghost" data-a="docanceltrip" data-id="${t.id}">Confirm cancel</button>`:`<button class="btn ghost" data-a="canceltrip" data-id="${t.id}">Cancel</button>`):"";
-    return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?"Car ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
-  return `<h1>Request a driver</h1><p class="sub">Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash, or by EFT if you choose that. Tap I have arrived safely when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a car ride</button><button class="btn ghost" style="margin-top:8px" data-a="newreq">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
+    return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?(VEH[t.vehicle_class]||"Car")+" ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
+  return `<h1>Request a driver</h1><p class="sub">Need a ride or to move goods? Choose Request a ride, then pick Car, Bakkie or Truck: the app works out the distance and shows one fixed price, and a driver of that vehicle nearby accepts. You pay the driver in cash, or by EFT if you choose that. Tap I have arrived safely when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a ride</button><button class="btn ghost" style="margin-top:8px" data-a="newgoods">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
 }
 function reqForm(){
   return `<h1>Request a driver</h1>${msgs()}<div class="card">
@@ -746,7 +751,7 @@ function applyScreen(){
   if(m) return `<h1>Driver application</h1>${msgs()}<div class="card"><div class="banner ${m.status==="approved"?"ok":"bad"}"><strong>${m.status==="approved"?"You are approved":m.status==="suspended"?"Your account is suspended":"Waiting for approval"}</strong>${m.status==="approved"?"Log out and log in again to open your driver screen.":"We are checking your details. You will be able to see your driver screen once you are approved."}</div></div>${m.car_photo_path?"":carCardHtml()}`;
   return `<h1>Become a driver</h1><p class="sub">Customers will see your name, face photo, car photo and vehicle details. Your cell number and ID number stay hidden from customers.</p>${msgs()}<div class="card">${drvHelp()}
   ${fld("name","Full name")}${fld("phone","Cellphone number","","tel")}${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}
-  ${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car (for car rides)"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
+  ${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}
   <label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*">
   <label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">
   <label style="display:flex;gap:8px;align-items:flex-start;margin-top:14px"><input id="f_consent" type="checkbox" data-a="chk" data-k="consent" ${ST.form.consent?"checked":""}><span>I agree that Eezy Kasi keeps my ID details to check who I am, and shows my name, photo, vehicle and car photo to customers.</span></label>
@@ -765,7 +770,7 @@ function driver(){
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Eezy Kasi.</div>':"");
   const carCard=me.car_photo_path?"":carCardHtml();
   const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.pay_method==="eft"?'<span class="tag">Pays by EFT</span> ':""}${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':x.same_area?'<span class="tag ok">From your kasi</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
-  const rideSec=me.vehicle_type==="car"?`<h2>Car rides near you</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and rides from your own place show first. New ones appear by themselves. Keep this app open on your screen.</div>${rideList||'<div class="card"><small>No car rides near you right now.</small></div>'}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">Go online to see car ride requests close to you. Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
+  const rideSec=isRider(me)?`<h2>${me.vehicle_type==="car"?"Car rides near you":VEH[me.vehicle_type]+" requests near you"}</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and rides from your own place show first. New ones appear by themselves. Keep this app open on your screen.</div>${rideList||`<div class="card"><small>${me.vehicle_type==="car"?"No car rides near you right now.":"No requests near you right now."}</small></div>`}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">${me.vehicle_type==="car"?"Go online to see car ride requests close to you.":"Go online to see ride requests close to you."} Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
     return `<div class="card"><div class="row"><b>${esc(r.from_place)} → ${esc(r.to_place)}</b><b>${rt?R(rt.price_cents):""}</b></div><small>${esc(r.goods_type)}: ${esc(r.description||"")}<br>When: ${esc(r.when_text||"-")}${r.budget_cents?"<br>Customer budget: "+R(r.budget_cents):""}</small>${offered.has(r.id)?'<div class="note">You accepted. Waiting for the customer to choose.</div>':`<button class="btn" data-a="offer" data-id="${r.id}">Accept at ${R(rt?rt.price_cents:0)}</button>`}</div>`}).join("");
   const jobs=ST.jobs.map(j=>{const g=tagFor(j.status), c=ST.contacts[j.id]||{};
@@ -774,8 +779,8 @@ function driver(){
   const routes=ST.myRoutes.map(p=>`<div class="row"><span>${esc(p.from_place)} → ${esc(p.to_place)}</span><span><b>${R(p.price_cents)}</b> <button class="sm" data-a="delroute" data-id="${p.id}">Remove</button></span></div>`).join("");
   if(xtab==="req"){
     const act=(ST.jobs||[]).length;
-    const goods=`<h2>${me.vehicle_type==="car"?"Goods requests":"Requests"} for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}`;
-    return `<h1>Requests</h1><p class="sub">${me.vehicle_type==="car"?"Go online here, then new customer requests appear on this screen.":"Customers asking for your routes appear here."}</p>${bn}${msgs()}
+    const goods=isRider(me)?"":`<h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}`;
+    return `<h1>Requests</h1><p class="sub">${isRider(me)?"Go online here, then new customer requests appear on this screen.":"Customers asking for your routes appear here."}</p>${bn}${msgs()}
   ${act?`<div class="banner ok"><strong>You have ${act} active job${act===1?"":"s"}</strong><button class="sm" style="margin-top:8px" data-a="xtab" data-v="main">Open My jobs</button></div>`:""}
   ${rideSec}${goods}`;
   }
@@ -786,7 +791,7 @@ function driver(){
     <button class="btn" data-a="pay" ${due?"":"disabled"}>Pay amount due</button></div>
   ${earnCard()}${carCard}${me.vehicle_type==="car"?eftSetup():""}
   <h2>Your jobs</h2>${jobs||'<div class="card"><small>No open jobs.</small></div>'}
-  ${me.vehicle_type==="car"?"":`<h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
+  ${isRider(me)?"":`<h2>Your route prices</h2><div class="card">${routes||"<small>Add a price for each trip you do, for example Geneva to Mzinyathi.</small>"}
     ${placeSel("rf","From")}${placeSel("rt","To")}${fld("pprice","Price in rand","e.g. 200","number")}
     <button class="btn" data-a="addroute">Save route price</button></div>`}`;
 }
@@ -1141,7 +1146,7 @@ async function doSignup(){
     if(biz&&!(f.sshop||"").trim()) throw new Error("Please type your business name.");
     if(drv){
       if(!(f.make||"").trim()||!(f.colour||"").trim()||!(f.plate||"").trim()||!(f.idno||"").trim()) throw new Error("Please fill in your vehicle make, colour, number plate and ID number.");
-      if(!f.vtype) throw new Error("Please choose your vehicle type. Choose Car if you want car rides.");
+      if(!f.vtype) throw new Error("Please choose your vehicle type. Choose Car, Bakkie or Truck to get ride requests.");
       if(!(phf&&phf[0])||!(carf&&carf[0])||!(idf&&idf[0])) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
     }
     if(!/^(\+27|0)[0-9]{9}$/.test(phone)) throw new Error("Please type a valid cell number, for example 081 234 5678.");
@@ -1217,7 +1222,7 @@ function loginScreen(){
 }
 const IN_APP=(()=>{ try{ const u=navigator.userAgent||""; return /FBAN|FBAV|Instagram|TikTok|musical_ly|; wv\)/.test(u)||(/iPhone|iPad/.test(u)&&!/Safari\//.test(u)); }catch(e){ return false; } })();
 const drvHelp=()=>(IN_APP?'<div class="banner bad"><strong>Open this page in Chrome or Safari</strong>It looks like you opened this link inside another app (such as WhatsApp or Facebook). The camera and photo buttons often do not work there. Tap the menu (three dots) or the share button, then choose Open in Chrome or Open in Safari.</div>':"")+'<div class="note"><b>Before you start, have these ready:</b><br>1. A photo of your face.<br>2. A photo of your car, with the number plate showing.<br>3. A photo of your ID.<br>4. Your ID number and your car number plate.<br>5. Your cell number, for example 0781234567.<br>Take the photos with the normal camera setting (JPG).</div>';
-const drvFields=()=>drvHelp()+`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car (for car rides)"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
+const drvFields=()=>drvHelp()+`${fld("make","Vehicle make","e.g. Toyota Hilux")}${fld("colour","Vehicle colour")}${fld("plate","Number plate")}${sel("vtype","Vehicle type",[["","Choose your vehicle"],["car","Car"],["bakkie","Bakkie"],["truck","Truck"],["other","Other"]])}${fld("idno","ID number")}<label for="f_photo">Your face photo</label><input id="f_photo" type="file" accept="image/*"><label for="f_carphoto">Photo of your car</label><input id="f_carphoto" type="file" accept="image/*"><small>Show the whole car from the front or the side, so customers can recognise it.</small><label for="f_idfile">Photo of your ID</label><input id="f_idfile" type="file" accept="image/*">`;
 const constrFields=()=>sel("strade","Your trade",[["","Choose your trade"],...TRADES.map(t=>[t,t]),["__other","Other (type it)"]])+(ST.form.strade==="__other"?fld("stradeo","Type your trade","e.g. Glazier"):"")+'<b style="display:block;margin-top:12px">Places you work in</b><small>Tick every place you work in. Customers can search for them.</small>'+ST.areas.map(a=>`<label class="chk"><input type="checkbox" data-a="chk" data-k="swp_${a.id}" ${ST.form["swp_"+a.id]?"checked":""}><span>${esc(a.name)}</span></label>`).join("")+fld("swpx","Other places you work in","Separate with commas");
 function signupScreen(){
   const areas=[["","Choose your location"],...ST.areas.map(a=>[a.name,a.name]),["__other","My place is not on the list"]];
@@ -1333,7 +1338,9 @@ const H={
   paid:()=>go(async()=>{await rpc("submit_payment",{});ownView="due";await reload();ST.note="Payment submitted. We will confirm it when we see it in our account.";}),
   cview:el=>go(async()=>{cview=el.dataset.v;ST.shop=null;ST.biz=null;ST.req=false;ST.rd=null;ST.thread=null;ST.msgs=[];if(cview==="msgs")await loadChats();if(cview==="drive")await loadTrips();if(cview==="home")await loadFeed();if(cview==="apply")await loadMe();if(cview==="build"&&window.loadBuild)await window.loadBuild();}),
   newreq:()=>{ST.req=true;}, noreq:()=>{ST.req=false;},
-  newride:()=>{ST.rd={pickup:null,drop:null,res:{},note:{},quote:null};ST.req=false;}, rdback:()=>{ST.rd=null;},
+  newride:()=>{ST.rd={pickup:null,drop:null,res:{},note:{},quote:null,veh:"car"};ST.req=false;},
+  newgoods:()=>{ST.rd={pickup:null,drop:null,res:{},note:{},quote:null,veh:"bakkie"};ST.req=false;},
+  rdveh:el=>go(async()=>{ST.rd.veh=(el.dataset.v==="bakkie"||el.dataset.v==="truck")?el.dataset.v:"car"; ST.form.rdpref=""; await rdQuote();}), rdback:()=>{ST.rd=null;},
   rdclear:el=>{ST.rd[el.dataset.v]=null;ST.rd.quote=null;},
   rdmap:el=>go(async()=>{const k=el.dataset.v; ST.rd.map=k; ST.rd.tmp=null; ST.rd.view=null; ST.rd.res[k]=[]; ST.rd.note[k]="";
     try{ await loadLeaflet(); }catch(e){ ST.rd.map=null; throw e; } }),
@@ -1347,9 +1354,9 @@ const H={
     if(!res.length) throw new Error("No place found. Try the suburb, a road, or a nearby school or shop."); }),
   rdpick:(el,i)=>go(async()=>{const k=el.dataset.v, x=(ST.rd.res[k]||[])[i]; if(!x) return; ST.rd[k]=Object.assign({},x,{approx:!!ST.rd.note[k]}); ST.rd.res[k]=[]; ST.rd.note[k]=""; await rdQuote();}),
   rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
-    const q2=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2)});
+    const q2=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_vehicle:d.veh||"car"});
     if(q2.price_cents!==d.quote.price_cents){ d.quote=q2; throw new Error("The price has changed to "+R(q2.price_cents)+" because the weekend rate has just "+(q2.surcharge_cents>0?"started":"ended")+". Please check it and tap Request again."); }
-    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null,...(d.pay==="eft"?{p_pay_method:"eft"}:{})});
+    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null,p_vehicle:d.veh||"car",...(d.pay==="eft"?{p_pay_method:"eft"}:{})});
     f.rdland=""; f.rdnote=""; f.rdpref="";
     ST.rd=null; await loadTrips(); ST.note=(d.pay==="eft"?"When a driver accepts, their bank details appear here so you can pay. ":"")+"Ride requested. We are asking drivers from your own place first, then drivers nearby. You will hear a sound when a driver accepts."; }),
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
@@ -1369,7 +1376,7 @@ const H={
     if(!document.getElementById("f_consent").checked) throw new Error("Please tick the box to agree.");
     const ph=document.getElementById("f_photo").files[0], idf=document.getElementById("f_idfile").files[0], carf=document.getElementById("f_carphoto").files[0];
     if(!ph||!carf||!idf) throw new Error("Please add your face photo, a photo of your car and a photo of your ID.");
-    if(!f.vtype) throw new Error("Please choose your vehicle type. Choose Car if you want car rides.");
+    if(!f.vtype) throw new Error("Please choose your vehicle type. Choose Car, Bakkie or Truck to get ride requests.");
     ST.note="Sending your photos… please wait, this can take a minute on mobile data."; render();
     const pp=await upload("driver-photos",ph,"photo"), cp=await upload("driver-photos",carf,"car"), ip=await upload("driver-ids",idf,"id");
     await rpc("apply_as_driver",{p_name:f.name||"",p_phone:f.phone||"",p_make:f.make||"",p_colour:f.colour||"",p_plate:f.plate||"",p_type:f.vtype||"bakkie",p_id_number:f.idno||"",p_photo_path:pp,p_id_doc_path:ip,p_car_photo_path:cp});
@@ -2645,8 +2652,8 @@ if("serviceWorker" in navigator) addEventListener("load", () => navigator.servic
     try { ST.gal = await sb("/rest/v1/shop_photos?select=id,caption,before_path,after_path&shop_id=eq." + id + "&order=id.desc&limit=12"); } catch (e) { ST.gal = []; }
   });
   H.bizdrive = () => go(async () => {
-    const nm = ST.biz ? ST.biz.name : ""; cview = "drive"; ST.biz = null; ST.rd = null; ST.req = true;
-    ST.form.goods = "material"; ST.form.desc = nm ? "Collect materials from " + nm : ""; await loadTrips();
+    const nm = ST.biz ? ST.biz.name : ""; cview = "drive"; ST.biz = null; ST.req = false; ST.rd = { pickup: null, drop: null, res: {}, note: {}, quote: null, veh: "bakkie" };
+    ST.form.rdnote = nm ? "Collect materials from " + nm : ""; await loadTrips();
   });
   H.bizback = () => { ST.biz = null; ST.rpid = null; };
 
@@ -2761,7 +2768,7 @@ Object.assign(H,{
 (function () {
   const ZU = {
     "Customers, drivers and business owners: tap Create account. If we set up your shop for you, log in with the email we gave you.":"Amakhasimende, abashayeli nabanikazi bamabhizinisi: cindezela u-Dala i-akhawunti. Uma isitolo sakho sisethwe yithi, ngena nge-imeyili esiyinikezile.",
-    "Need a car? Choose Request a car ride: the app uses your phone's location to work out the distance and shows a fixed price. Need to move goods? Choose Move goods, say where from and where to, and drivers on that route accept. You pay the driver in cash. Tap I have arrived safely when you get there.":"Udinga imoto? Khetha Cela imoto: i-app isebenzisa indawo yefoni yakho ukubala ibanga futhi ikubonise intengo ebekiwe. Udinga ukuthutha impahla? Khetha Thutha impahla, uveze lapho uvela khona nalapho uya khona, bese abashayeli abahamba lowo mzila bayamukela. Ukhokhela umshayeli ngemali eyimali. Cindezela Ngifike kahle uma usufikile.",
+    "Need a ride or to move goods? Choose Request a ride, then pick Car, Bakkie or Truck: the app works out the distance and shows one fixed price, and a driver of that vehicle nearby accepts. You pay the driver in cash. Tap I have arrived safely when you get there.":"Udinga uhambo noma ukuthutha impahla? Khetha Cela uhambo, bese ukhetha Imoto, Ibakkie noma Ilori: i-app ibala ibanga futhi ikubonise intengo eyodwa ebekiwe, bese umshayeli wesithuthi esikhethile oseduze ekwamukela. Ukhokhela umshayeli ngemali eyimali. Cindezela Ngifike kahle uma usufikile.",
     "Choose where from and where to. The app works out the distance and shows one fixed price before you ask for a driver. You pay the driver in cash.":"Khetha lapho uvela khona nalapho uya khona. I-app ibala ibanga futhi ikubonise intengo eyodwa ebekiwe ngaphambi kokuba ucele umshayeli. Ukhokhela umshayeli ngemali eyimali.",
     "Having trouble? Tell us":"Unenkinga? Sitshele","What went wrong?":"Kwenzeke ini?","Send to Eezy Kasi":"Thumela ku-Eezy Kasi","Thank you":"Siyabonga","Choose your vehicle":"Khetha imoto yakho","Vehicle type":"Uhlobo lwemoto",
     "Home":"Ikhaya","Messages":"Imiyalezo","Log in":"Ngena","Create account":"Dala i-akhawunti","Forgot password?":"Ukhohlwe iphasiwedi?",
@@ -2772,7 +2779,7 @@ Object.assign(H,{
     "Send reset link":"Thumela isixhumanisi","Reset your password":"Setha kabusha iphasiwedi yakho",
     "What do you need?":"Udinga ini?","Tap one to start.":"Khetha okukodwa ukuze uqale.",
     "Food":"Ukudla","Transport":"Ezokuthutha","Construction":"Ukwakha","Beauty":"Ubuhle","Become a driver":"Yiba umshayeli",
-    "Request a driver":"Cela umshayeli","Request a car ride":"Cela imoto","Move goods (bakkie or truck)":"Thutha impahla (ibakkie noma ilori)",
+    "Request a driver":"Cela umshayeli","Request a car ride":"Cela imoto","Request a ride":"Cela uhambo","Move goods (bakkie or truck)":"Thutha impahla (ibakkie noma ilori)",
     "Pick-up":"Lapho ukhuphuka khona","Drop-off":"Lapho uya khona","Use my location":"Sebenzisa indawo yami",
     "Choose on the map":"Khetha kumephu","Or search for a place":"Noma sesha indawo","Search for a place":"Sesha indawo",
     "Use this spot":"Sebenzisa le ndawo","Request this ride":"Cela lolu hambo","Distance":"Ibanga","Fixed price":"Intengo ebekiwe",
