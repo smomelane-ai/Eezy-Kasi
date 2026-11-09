@@ -1,5 +1,0 @@
-User-agent: *
-Disallow: /rest/
-Allow: /
-
-Sitemap: https://inandabusiness.co.za/sitemap.xml
