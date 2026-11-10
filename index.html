@@ -628,6 +628,18 @@ const driverDocsAlert=()=>{ const l=Object.entries(ST.dd||{}).map(([id,x])=>[id,
   return `<h2>Drivers with missing or expired documents</h2>${l.map(([id,x,g])=>`<div class="card"><div class="row"><b>${esc(x.name)}</b><span class="tag bad">${x.state==="expired"?"Expired":"Missing"}</span></div><small>${esc(x.vehicle_type)} driver${g.length?"<br>"+g.map(esc).join("<br>"):""}</small></div>`).join("")}`; };
 const gpos=()=>new Promise(r=>{ if(!navigator.geolocation) return r({}); navigator.geolocation.getCurrentPosition(p=>r({lat:p.coords.latitude,lng:p.coords.longitude}),()=>r({}),{enableHighAccuracy:true,timeout:8000,maximumAge:30000}); });
 const panicBtn=rid=>ST.panic===rid?`<div class="card" style="border:2px solid #c00;margin-top:8px"><b>Emergency</b><p style="margin:6px 0"><small>If you are in danger, call the police first. Eezy Kasi cannot send help by itself.</small></p><a class="btn" style="display:block;text-align:center;background:#c00;color:#fff" href="tel:10111">Call police 10111</a><button class="btn" style="background:#c00;color:#fff;margin-top:8px" data-a="panicsend" data-id="${rid}">Send alert to Eezy Kasi with my location</button><button class="btn ghost" style="margin-top:8px" data-a="panicno">Close</button></div>`:`<button class="btn ghost" style="margin-top:8px;border-color:#c00;color:#c00" data-a="panic" data-id="${rid}">🚨 Emergency</button>`;
+const statsCard=()=>{ if(!ST.statsOpen) return '<button class="btn ghost" data-a="statsopen" style="margin:8px 0">📊 Business numbers</button>';
+  const d=ST.stats; if(!d) return '<div class="card"><small>Loading the numbers…</small></div>';
+  const tile=(n,l)=>`<div style="flex:1 1 44%;background:var(--card,#f5f5f5);border-radius:12px;padding:10px;text-align:center"><div style="font-size:24px;font-weight:800">${n}</div><small>${l}</small></div>`;
+  const wk=d.weeks||[], mx=Math.max(1,...wk.map(w=>Math.max(+w.signups,+w.orders,+w.rides)));
+  const bar=(v,c)=>`<div style="height:8px;border-radius:4px;background:${c};width:${Math.round(100*(+v)/mx)}%;min-width:${+v?3:0}px"></div>`;
+  const rows=wk.map(w=>`<div style="margin:8px 0"><small><b>Week of ${esc(w.week)}</b> · ${+w.signups} sign-ups · ${+w.orders} orders · ${+w.rides} trips</small>${bar(w.signups,"#0a7")}${bar(w.orders,"#e90")}${bar(w.rides,"#26c")}</div>`).join("");
+  return `<div class="card"><div class="row"><h2>Business numbers</h2><button class="sm" data-a="statsclose">Hide</button></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">${tile(+d.people,"people signed up")}${tile(+d.shops,"shops")}${tile(+d.drivers_approved,"approved drivers")}${tile(+d.orders_delivered,"orders delivered")}${tile(+d.rides_completed,"trips completed")}${tile(R((+d.orders_value_cents)+(+d.rides_value_cents)),"value of orders and trips")}</div>
+  <small>Drivers: ${+d.drivers_car} car · ${+d.drivers_bakkie} bakkie · ${+d.drivers_truck} truck. Orders: ${R(+d.orders_value_cents)}. Trips: ${R(+d.rides_value_cents)}. Delivered orders and completed trips only.</small>
+  <h3 style="margin:12px 0 0">Last 8 weeks</h3><small><span style="color:#0a7">■</span> sign-ups <span style="color:#e90">■</span> orders <span style="color:#26c">■</span> trips</small>${rows}
+  <button class="btn" data-a="statscopy">Copy a summary to paste in a funding application</button></div>`; };
+const statsText=d=>{ const wk=d.weeks||[]; return `Eezy Kasi numbers as of ${new Date().toLocaleDateString("en-ZA")}:\n- ${+d.people} people signed up, ${+d.shops} shops, ${+d.drivers_approved} approved drivers (${+d.drivers_car} car, ${+d.drivers_bakkie} bakkie, ${+d.drivers_truck} truck)\n- ${+d.orders_delivered} food and shop orders delivered, worth ${R(+d.orders_value_cents)}\n- ${+d.rides_completed} trips completed, worth ${R(+d.rides_value_cents)}\n- Last 8 weeks: ${wk.reduce((a,w)=>a+(+w.signups),0)} new sign-ups, ${wk.reduce((a,w)=>a+(+w.orders),0)} orders, ${wk.reduce((a,w)=>a+(+w.rides),0)} trips`; };
 const panicAdmin=()=>{ const l=ST.pan||[]; if(!l.length) return "";
   return `<div class="banner bad"><strong>🚨 Emergency alerts (${l.length})</strong>Call these people now.</div>`+l.map(a=>`<div class="card" style="border:2px solid #c00"><div class="row"><b>${esc(a.name||"Unknown")} (${esc(a.role||"")})</b><small>${esc(new Date(a.at).toLocaleString())}</small></div><small>Phone: ${esc(a.phone||"-")}${a.request_id?" · trip #"+(+a.request_id):""}</small><br>${a.lat!=null?navLink(a.lat,a.lng,"Open location on map"):"<small>No location shared.</small>"}<br>${a.phone?`<a class="btn" href="tel:${esc(a.phone)}">Call</a> `:""}<button class="sm" data-a="panicres" data-id="${a.id}">Mark handled</button></div>`).join(""); };
 const ratingsAlert=()=>{ const a=ST.rAlerts||{low:[],recent:[]}; if(!(a.low||[]).length&&!(a.recent||[]).length) return "";
@@ -958,7 +970,7 @@ function adminOverview(){
     <div class="card"><b>Funny video</b>${fld("vtitle","Title")}${fld("vurl","Video link (direct .mp4 link)","https://....mp4")}
     ${ST.vids.some(v=>!v.poster_url)?`<button class="btn ghost" data-a="thumbs">Create thumbnails for ${ST.vids.filter(v=>!v.poster_url).length} video${ST.vids.filter(v=>!v.poster_url).length===1?"":"s"}</button>`:""}<label for="v_file">Or upload a short video</label><small>MP4 or WebM, under 40 MB. Clips under 30 seconds work best.</small><input id="v_file" type="file" accept="video/mp4,video/webm"><button class="btn" data-a="postvideo">Add video</button>
     ${ST.vids.map(v=>`<div class="row"><span>${esc(v.title)}</span><button class="sm" data-a="delvid" data-id="${v.id}">Delete</button></div>`).join("")}</div>`;
-  return `<h1>Admin</h1><p class="sub">Businesses, drivers, payments and shops.</p>${msgs()}${panicAdmin()}
+  return `<h1>Admin</h1><p class="sub">Businesses, drivers, payments and shops.</p>${msgs()}${panicAdmin()}${statsCard()}
   ${owners?`<h2>Businesses waiting for approval</h2>${owners}`:""}${pend?`<h2>Drivers waiting for approval</h2>${pend}`:""}${driverDocsAlert()}${ratingsAlert()}${pays?`<h2>Payments to confirm</h2>${pays}`:""}${trips?`<h2>Trips not confirmed yet</h2>${trips}`:""}
   ${feedAdmin}<h2>Shops</h2>${rows||'<div class="card"><small>No shops yet.</small></div>'}
   <div class="card"><h2>Your bank details</h2><small>Only logged-in owners, drivers and you can see these.</small>${bank}</div>`;
@@ -1490,6 +1502,9 @@ const H={
   panic:(el,id)=>{ ST.panic=+id; },
   panicno:()=>{ ST.panic=null; },
   panicsend:(el,id)=>go(async()=>{ const p=await gpos(); await rpc("send_panic",{p_request:+id,p_lat:p.lat==null?null:p.lat,p_lng:p.lng==null?null:p.lng}); ST.panic=null; ST.note="Alert sent to Eezy Kasi. If you are in danger, call 10111 now."; }),
+  statsopen:()=>go(async()=>{ ST.statsOpen=true; ST.stats=null; render(); ST.stats=await rpc("admin_stats",{}); }),
+  statsclose:()=>{ ST.statsOpen=false; },
+  statscopy:()=>{ const t=statsText(ST.stats||{}); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>{ ST.note="Copied. Paste it into your application or message."; render(); }).catch(()=>{ prompt("Copy this text:",t); }); return true; },
   panicres:(el,id)=>go(async()=>{ await rpc("resolve_panic",{p_id:+id}); ST.pan=(await rpc("admin_panic_alerts",{}))||[]; }),
   canceltrip:(el,id)=>{cancelling=id;},
   docanceltrip:(el,id)=>go(async()=>{await rpc("set_transport_status",{p_request:id,p_status:"cancelled",p_reason:document.getElementById("why").value});cancelling=null;await loadTrips();}),
