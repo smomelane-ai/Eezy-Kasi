@@ -522,10 +522,13 @@
 
     if (!isSearchRequest(text)) return null;
 
+    const affordable =
+      /\b(affordable|cheap|cheapest|budget|low[- ]cost)\b/i.test(text);
+
     let area = "";
     let maxPrice = null;
 
-    /* Extract maximum price, for example: under R30 */
+    /* Extract maximum price */
     const pricePattern =
       /\b(?:under|below|less than|max(?:imum)?|up to|ngaphansi kuka)\s*r?\s*(\d+(?:\.\d{1,2})?)/i;
 
@@ -536,7 +539,7 @@
       text = text.replace(pricePattern, " ");
     }
 
-    /* Extract area, for example: in Geneva or near Inanda */
+    /* Extract area */
     const areaPattern =
       /\b(?:in|near|around)\s+([a-z][a-z\s-]*?)(?=\s+(?:under|below|less than|max(?:imum)?|up to)\b|$)/i;
 
@@ -552,7 +555,7 @@
       text = text.replace(areaPattern, " ");
     }
 
-    /* Recognise isiZulu location spelling such as eGeneva */
+    /* Recognise isiZulu location spelling */
     const zuluAreaMatch = text.match(/\be([a-z][a-z-]{2,})\b/i);
 
     if (!area && zuluAreaMatch) {
@@ -560,7 +563,7 @@
       text = text.replace(zuluAreaMatch[0], " ");
     }
 
-    /* Remove search instructions, keeping actual search terms */
+    /* Remove search instructions */
     const removePhrases = [
       /\bwhere can i get\b/gi,
       /\bwhere can i buy\b/gi,
@@ -616,7 +619,9 @@
       /\bare\b/gi,
       /\band\b/gi,
       /\baffordable\b/gi,
-      /\bcheap(?:est)?\b/gi
+      /\bcheap(?:est)?\b/gi,
+      /\bbudget\b/gi,
+      /\blow[- ]cost\b/gi
     ];
 
     removePhrases.forEach(pattern => {
@@ -626,7 +631,7 @@
     /* Keep food as a search category */
     text = text.replace(/\bmeals?\b/gi, "food");
 
-    /* Correct known isiZulu spelling iKota */
+    /* Correct known isiZulu spelling */
     text = text.replace(/\bikota\b/gi, "kota");
 
     const query = text
@@ -634,10 +639,6 @@
       .trim()
       .slice(0, 80);
 
-    /*
-     * Only an explicit request to find shops with no
-     * other search term should browse all open shops.
-     */
     const shopOnlyRequest =
       !query &&
       !area &&
@@ -645,7 +646,7 @@
       /\b(find|search|show|browse|look for)\b/i.test(original) &&
       /\b(shop|shops|store|stores)\b/i.test(original);
 
-    if (!query && !area && maxPrice === null && !shopOnlyRequest) {
+    if (!query && !area && maxPrice === null && !shopOnlyRequest && !affordable) {
       return null;
     }
 
@@ -653,7 +654,8 @@
       query,
       area,
       max_price_rands: maxPrice,
-      browse_all: shopOnlyRequest
+      browse_all: shopOnlyRequest,
+      affordable
     };
   }
 
@@ -774,27 +776,29 @@
     return "R" + (Number(cents) / 100).toFixed(2);
   }
 
-  function formatSearchResults(data) {
-         const affordableSearch =
-      /\b(affordable|cheap|cheapest|budget)\b/i.test(
-        String(data.filters?.query || "")
-      );
+  function formatSearchResults(data, affordableSearch) {
+    const affordable = affordableSearch === true;
 
-    if (affordableSearch && Array.isArray(data.products)) {
-      data.products.sort((a, b) => {
-        const getPrice = product =>
-          Number(
+    const shops = Array.isArray(data.shops) ? data.shops : [];
+    const products = Array.isArray(data.products) ? [...data.products] : [];
+
+    /* Sort affordable searches by pickup price first */
+    if (affordable) {
+      products.sort((a, b) => {
+        const getPrice = product => {
+          const price =
             product.pickup_price_cents ??
             product.app_price_cents ??
-            product.shop_price_cents ??
-            Number.MAX_SAFE_INTEGER
-          );
+            product.shop_price_cents;
+
+          return price === null || price === undefined
+            ? Number.MAX_SAFE_INTEGER
+            : Number(price);
+        };
 
         return getPrice(a) - getPrice(b);
       });
     }
-    const shops = Array.isArray(data.shops) ? data.shops : [];
-    const products = Array.isArray(data.products) ? data.products : [];
 
     if (!shops.length && !products.length) {
       return language === "zu"
@@ -1033,7 +1037,10 @@
 
         const searchData = await searchTownship(searchFilters);
 
-        waiting.textContent = formatSearchResults(searchData);
+        waiting.textContent = formatSearchResults(
+          searchData,
+          searchFilters.affordable
+        );
 
         return;
       }
