@@ -1,12 +1,14 @@
 
 /* =========================================================
-   EEZY AI — Your Township Digital Assistant
-   Separate frontend module for Eezy Kasi.
-   Uses the existing authenticated super-processor function.
+   EEZY AI — YOUR TOWNSHIP DIGITAL ASSISTANT
+   Complete frontend: chat, voice input, English and isiZulu.
+   Uses the authenticated Supabase super-processor function.
    ========================================================= */
 
 (() => {
   "use strict";
+
+  if (document.getElementById("eezy-ai-panel")) return;
 
   const FN = SB_URL + "/functions/v1/super-processor";
 
@@ -25,6 +27,7 @@
       box-shadow: 0 5px 22px #0003;
       cursor: pointer;
     }
+
     #eezy-ai-panel {
       position: fixed;
       right: 16px;
@@ -43,10 +46,12 @@
       overflow: hidden;
       font-family: system-ui, sans-serif;
     }
+
     #eezy-ai-panel[hidden],
     #eezy-ai-launcher[hidden] {
       display: none !important;
     }
+
     .eezy-ai-head {
       display: flex;
       align-items: center;
@@ -56,8 +61,18 @@
       background: var(--accent, #176b45);
       color: var(--on-accent, #fff);
     }
-    .eezy-ai-head strong { display: block; font-size: 15px; }
-    .eezy-ai-head small { display: block; opacity: .85; font-size: 11px; }
+
+    .eezy-ai-head strong {
+      display: block;
+      font-size: 15px;
+    }
+
+    .eezy-ai-head small {
+      display: block;
+      opacity: .85;
+      font-size: 11px;
+    }
+
     .eezy-ai-head button {
       border: 0;
       background: transparent;
@@ -66,6 +81,7 @@
       cursor: pointer;
       padding: 2px 7px;
     }
+
     .eezy-ai-tools {
       display: flex;
       align-items: center;
@@ -75,6 +91,7 @@
       border-bottom: 1px solid var(--line, #ddd);
       font-size: 12px;
     }
+
     .eezy-ai-tools button,
     .eezy-ai-suggestions button {
       border: 1px solid var(--line, #ddd);
@@ -85,6 +102,7 @@
       cursor: pointer;
       font: inherit;
     }
+
     .eezy-ai-messages {
       flex: 1;
       min-height: 0;
@@ -95,6 +113,7 @@
       gap: 10px;
       background: var(--bg, #f7f7f7);
     }
+
     .eezy-ai-message {
       max-width: 88%;
       padding: 10px 12px;
@@ -104,16 +123,19 @@
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
+
     .eezy-ai-message.bot {
       align-self: flex-start;
       background: var(--surface, #fff);
       border: 1px solid var(--line, #ddd);
     }
+
     .eezy-ai-message.me {
       align-self: flex-end;
       background: var(--accent, #176b45);
       color: var(--on-accent, #fff);
     }
+
     .eezy-ai-suggestions {
       display: flex;
       flex-wrap: wrap;
@@ -121,14 +143,20 @@
       padding: 8px 12px;
       border-top: 1px solid var(--line, #ddd);
     }
-    .eezy-ai-suggestions button { font-size: 11px; }
+
+    .eezy-ai-suggestions button {
+      font-size: 11px;
+    }
+
     .eezy-ai-compose {
       display: flex;
-      gap: 8px;
+      align-items: stretch;
+      gap: 7px;
       padding: 10px 12px;
       border-top: 1px solid var(--line, #ddd);
       background: var(--surface, #fff);
     }
+
     .eezy-ai-compose textarea {
       flex: 1;
       min-width: 0;
@@ -142,16 +170,42 @@
       color: var(--ink, #222);
       font: 13px system-ui, sans-serif;
     }
+
     .eezy-ai-compose button {
       border: 0;
       border-radius: 11px;
-      padding: 0 15px;
+      padding: 0 12px;
       background: var(--accent, #176b45);
       color: var(--on-accent, #fff);
       font-weight: 700;
       cursor: pointer;
     }
-    .eezy-ai-compose button:disabled { opacity: .5; cursor: wait; }
+
+    .eezy-ai-compose #eezy-ai-mic {
+      min-width: 43px;
+      padding: 0 8px;
+      background: var(--bg, #eee);
+      color: var(--ink, #222);
+      border: 1px solid var(--line, #ddd);
+      font-size: 19px;
+    }
+
+    .eezy-ai-compose #eezy-ai-mic.listening {
+      background: #c62828;
+      color: white;
+      border-color: #c62828;
+      animation: eezy-ai-pulse 1s infinite;
+    }
+
+    .eezy-ai-compose button:disabled {
+      opacity: .5;
+      cursor: wait;
+    }
+
+    @keyframes eezy-ai-pulse {
+      50% { opacity: .55; }
+    }
+
     .eezy-ai-foot {
       padding: 5px 12px 8px;
       color: var(--muted, #777);
@@ -159,8 +213,13 @@
       text-align: center;
       background: var(--surface, #fff);
     }
+
     @media (max-width: 480px) {
-      #eezy-ai-launcher { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+      #eezy-ai-launcher {
+        right: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+      }
+
       #eezy-ai-panel {
         right: 8px;
         bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
@@ -193,8 +252,10 @@
         <strong>✦ Eezy AI</strong>
         <small>Your Township Digital Assistant</small>
       </div>
-      <button type="button" id="eezy-ai-close" aria-label="Close assistant">×</button>
+      <button type="button" id="eezy-ai-close"
+        aria-label="Close assistant">×</button>
     </div>
+
     <div class="eezy-ai-tools">
       <span id="eezy-ai-role">Your assistant</span>
       <div>
@@ -202,15 +263,28 @@
         <button type="button" id="eezy-ai-zu">isiZulu</button>
       </div>
     </div>
-    <div class="eezy-ai-messages" id="eezy-ai-messages" aria-live="polite"></div>
-    <div class="eezy-ai-suggestions" id="eezy-ai-suggestions"></div>
+
+    <div class="eezy-ai-messages" id="eezy-ai-messages"
+      aria-live="polite"></div>
+
+    <div class="eezy-ai-suggestions"
+      id="eezy-ai-suggestions"></div>
+
     <form class="eezy-ai-compose" id="eezy-ai-form">
       <textarea id="eezy-ai-input" maxlength="1000"
-        placeholder="Ask Eezy AI anything..." aria-label="Your message"></textarea>
+        placeholder="Ask Eezy AI anything..."
+        aria-label="Your message"></textarea>
+
+      <button id="eezy-ai-mic" type="button"
+        aria-label="Speak to Eezy AI"
+        title="Tap to speak">🎙️</button>
+
       <button id="eezy-ai-send" type="submit">Send</button>
     </form>
+
     <div class="eezy-ai-foot">
-      Eezy AI can guide you, but cannot complete transactions without your confirmation.
+      Eezy AI can guide you, but cannot complete transactions
+      without your confirmation.
     </div>
   `;
 
@@ -220,12 +294,16 @@
   const input = panel.querySelector("#eezy-ai-input");
   const form = panel.querySelector("#eezy-ai-form");
   const sendButton = panel.querySelector("#eezy-ai-send");
+  const micButton = panel.querySelector("#eezy-ai-mic");
   const roleLabel = panel.querySelector("#eezy-ai-role");
   const suggestions = panel.querySelector("#eezy-ai-suggestions");
 
   let language = localStorage.getItem("inanda_lang") === "zu" ? "zu" : "en";
   let activeUserId = null;
   let busy = false;
+  let recognition = null;
+  let listening = false;
+  let voiceBaseText = "";
 
   const roleNames = {
     cust: "Customer assistant",
@@ -285,21 +363,46 @@
     if (language === "zu") {
       return "Sawubona! Ngingu-Eezy AI, umsizi wakho we-Eezy Kasi. Ngingakusiza ukuthi usebenzise uhlelo lokusebenza. Ungathanda ukusizwa ngani?";
     }
+
     const greetings = {
       cust: "Hello! I'm Eezy AI, your Eezy Kasi assistant. I can help you find your way around the app, shops, products and transport.",
       drv: "Hello, driver! I'm Eezy AI. Ask me about using Eezy Kasi, your driver profile and transport requests.",
       own: "Hello! I'm Eezy AI, your business assistant. Ask me about managing your shop, orders and promoting your business.",
       adm: "Hello! I'm Eezy AI. I can help explain Eezy Kasi's features and administrative workflows."
     };
+
     return greetings[role] || greetings.cust;
+  }
+
+  function stopVoice() {
+    if (recognition && listening) {
+      try {
+        recognition.stop();
+      } catch (_) {}
+    }
+
+    listening = false;
+    micButton.classList.remove("listening");
+    micButton.textContent = "🎙️";
   }
 
   function setLanguage(next) {
     language = next;
     localStorage.setItem("inanda_lang", next);
-    panel.querySelector("#eezy-ai-en").style.fontWeight = next === "en" ? "700" : "400";
-    panel.querySelector("#eezy-ai-zu").style.fontWeight = next === "zu" ? "700" : "400";
-    input.placeholder = next === "zu" ? "Buza u-Eezy AI..." : "Ask Eezy AI anything...";
+
+    panel.querySelector("#eezy-ai-en").style.fontWeight =
+      next === "en" ? "700" : "400";
+
+    panel.querySelector("#eezy-ai-zu").style.fontWeight =
+      next === "zu" ? "700" : "400";
+
+    input.placeholder =
+      next === "zu" ? "Buza u-Eezy AI..." : "Ask Eezy AI anything...";
+
+    if (recognition) {
+      recognition.lang = next === "zu" ? "zu-ZA" : "en-ZA";
+    }
+
     if (messages.children.length === 1) {
       messages.replaceChildren();
       addMessage(greeting(currentRole()), "bot");
@@ -308,16 +411,20 @@
 
   function showSuggestions(role) {
     suggestions.replaceChildren();
-    (suggestionsByRole[role] || suggestionsByRole.cust).forEach(([label, question]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = label;
-      button.addEventListener("click", () => {
-        input.value = question;
-        form.requestSubmit();
+
+    (suggestionsByRole[role] || suggestionsByRole.cust)
+      .forEach(([label, question]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+
+        button.addEventListener("click", () => {
+          input.value = question;
+          form.requestSubmit();
+        });
+
+        suggestions.appendChild(button);
       });
-      suggestions.appendChild(button);
-    });
   }
 
   function sync() {
@@ -329,11 +436,13 @@
 
     if (!allowed) {
       panel.hidden = true;
+      stopVoice();
       activeUserId = null;
       return;
     }
 
     if (activeUserId !== id) {
+      stopVoice();
       activeUserId = id;
       messages.replaceChildren();
       roleLabel.textContent = roleNames[role] || "Your assistant";
@@ -343,22 +452,128 @@
     }
   }
 
+  /* VOICE INPUT */
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.lang = language === "zu" ? "zu-ZA" : "en-ZA";
+
+    recognition.onstart = () => {
+      listening = true;
+      micButton.classList.add("listening");
+      micButton.textContent = "⏹️";
+      micButton.title = "Listening — tap to stop";
+    };
+
+    recognition.onresult = event => {
+      let transcript = "";
+      let hasFinalResult = false;
+
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) hasFinalResult = true;
+      }
+
+      const separator = voiceBaseText.trim() ? " " : "";
+      input.value = (voiceBaseText + separator + transcript).slice(0, 1000);
+
+      if (hasFinalResult) {
+        input.focus();
+      }
+    };
+
+    recognition.onerror = event => {
+      const errors = {
+        "not-allowed": "Please allow microphone access in your browser settings.",
+        "service-not-allowed": "Your browser has blocked voice recognition.",
+        "no-speech": "We didn't hear anything. Please try again.",
+        "network": "Voice recognition needs an internet connection.",
+        "audio-capture": "No working microphone was detected."
+      };
+
+      if (event.error !== "aborted") {
+        addMessage(
+          errors[event.error] || "Voice recognition encountered a problem.",
+          "bot"
+        );
+      }
+
+      stopVoice();
+    };
+
+    recognition.onend = () => {
+      listening = false;
+      micButton.classList.remove("listening");
+      micButton.textContent = "🎙️";
+      micButton.title = "Tap to speak";
+    };
+
+    micButton.addEventListener("click", () => {
+      if (listening) {
+        recognition.stop();
+        return;
+      }
+
+      if (!window.isSecureContext) {
+        addMessage(
+          "Voice input requires a secure HTTPS connection.",
+          "bot"
+        );
+        return;
+      }
+
+      if (busy) return;
+
+      voiceBaseText = input.value.trim();
+
+      try {
+        recognition.lang = language === "zu" ? "zu-ZA" : "en-ZA";
+        recognition.start();
+      } catch (_) {
+        addMessage(
+          "Please wait a moment and try the microphone again.",
+          "bot"
+        );
+      }
+    });
+
+  } else {
+    micButton.disabled = true;
+    micButton.textContent = "🚫";
+    micButton.title =
+      "Voice recognition is not supported by this browser.";
+  }
+
+  /* SEND MESSAGE TO SUPABASE */
+
   async function sendMessage(message) {
     if (busy) return;
+
     const clean = String(message || "").trim().slice(0, 1000);
     if (clean.length < 2) return;
 
     const role = currentRole();
+
     if (!role || !currentId()) {
       addMessage("Please sign in again to use Eezy AI.", "bot");
       return;
     }
 
+    stopVoice();
     addMessage(clean, "me");
     input.value = "";
+
     busy = true;
     sendButton.disabled = true;
+    micButton.disabled = true;
     sendButton.textContent = "...";
+
     const waiting = addMessage(
       language === "zu" ? "Ngicela ulinde..." : "Eezy AI is thinking...",
       "bot"
@@ -366,7 +581,10 @@
 
     try {
       let token = sess && sess.access_token;
-      if (!token) throw new Error("Your session has expired. Please sign in again.");
+
+      if (!token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
 
       async function request(accessToken) {
         return fetch(FN, {
@@ -386,33 +604,53 @@
 
       let response = await request(token);
 
-      if (response.status === 401 && typeof refreshSession === "function") {
+      if (response.status === 401 &&
+          typeof refreshSession === "function") {
         await refreshSession();
         token = sess && sess.access_token;
-        if (token) response = await request(token);
+
+        if (token) {
+          response = await request(token);
+        }
       }
 
       const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error("You've reached today's Eezy AI usage limit. Please try again tomorrow.");
+          throw new Error(
+            "You've reached today's Eezy AI usage limit. Please try again tomorrow."
+          );
         }
-        throw new Error(data.error || data.message || "Eezy AI could not respond. Please try again later.");
+
+        throw new Error(
+          data.error || data.message ||
+          "Eezy AI could not respond. Please try again later."
+        );
       }
 
       const answer = data.text || data.answer;
-      if (!answer) throw new Error("Eezy AI returned an empty response. Please try again.");
+
+      if (!answer) {
+        throw new Error("Eezy AI returned an empty response. Please try again.");
+      }
+
       waiting.textContent = answer;
 
     } catch (error) {
-      waiting.textContent = error.message || "Something went wrong. Please try again.";
+      waiting.textContent =
+        error.message || "Something went wrong. Please try again.";
+
     } finally {
       busy = false;
       sendButton.disabled = false;
+      micButton.disabled = !recognition;
       sendButton.textContent = "Send";
       messages.scrollTop = messages.scrollHeight;
     }
   }
+
+  /* BUTTONS AND EVENTS */
 
   launcher.addEventListener("click", () => {
     panel.hidden = false;
@@ -420,11 +658,19 @@
   });
 
   panel.querySelector("#eezy-ai-close").addEventListener("click", () => {
+    stopVoice();
     panel.hidden = true;
   });
 
-  panel.querySelector("#eezy-ai-en").addEventListener("click", () => setLanguage("en"));
-  panel.querySelector("#eezy-ai-zu").addEventListener("click", () => setLanguage("zu"));
+  panel.querySelector("#eezy-ai-en").addEventListener("click", () => {
+    stopVoice();
+    setLanguage("en");
+  });
+
+  panel.querySelector("#eezy-ai-zu").addEventListener("click", () => {
+    stopVoice();
+    setLanguage("zu");
+  });
 
   form.addEventListener("submit", event => {
     event.preventDefault();
@@ -444,8 +690,17 @@
   const observer = new MutationObserver(sync);
   const app = document.getElementById("app");
   const bar = document.getElementById("bar");
-  if (app) observer.observe(app, { childList: true, subtree: true });
-  if (bar) observer.observe(bar, { childList: true, subtree: true });
+
+  if (app) observer.observe(app, {
+    childList: true,
+    subtree: true
+  });
+
+  if (bar) observer.observe(bar, {
+    childList: true,
+    subtree: true
+  });
 
   window.addEventListener("focus", sync);
+
 })();
