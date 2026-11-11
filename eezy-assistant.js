@@ -1,8 +1,10 @@
 
 /* =========================================================
    EEZY AI — YOUR TOWNSHIP DIGITAL ASSISTANT
-   Complete frontend: chat, voice input, English and isiZulu.
-   Uses the authenticated Supabase super-processor function.
+   Chat, smart township search, voice input, English/isiZulu.
+   Uses:
+   - eezy-search for real shop and product discovery
+   - super-processor for normal AI conversations
    ========================================================= */
 
 (() => {
@@ -11,6 +13,7 @@
   if (document.getElementById("eezy-ai-panel")) return;
 
   const FN = SB_URL + "/functions/v1/super-processor";
+  const SEARCH_FN = SB_URL + "/functions/v1/eezy-search";
 
   const STYLE = `
     #eezy-ai-launcher {
@@ -115,7 +118,7 @@
     }
 
     .eezy-ai-message {
-      max-width: 88%;
+      max-width: 92%;
       padding: 10px 12px;
       border-radius: 13px;
       font-size: 13px;
@@ -298,7 +301,9 @@
   const roleLabel = panel.querySelector("#eezy-ai-role");
   const suggestions = panel.querySelector("#eezy-ai-suggestions");
 
-  let language = localStorage.getItem("inanda_lang") === "zu" ? "zu" : "en";
+  let language =
+    localStorage.getItem("inanda_lang") === "zu" ? "zu" : "en";
+
   let activeUserId = null;
   let busy = false;
   let recognition = null;
@@ -315,6 +320,7 @@
   const suggestionsByRole = {
     cust: [
       ["Find a shop", "Help me find shops and products on Eezy Kasi."],
+      ["Find Kota", "Where can I buy Kota?"],
       ["Book transport", "How do I request a ride or transport?"],
       ["Using the app", "Show me how to use Eezy Kasi."]
     ],
@@ -365,7 +371,7 @@
     }
 
     const greetings = {
-      cust: "Hello! I'm Eezy AI, your Eezy Kasi assistant. I can help you find your way around the app, shops, products and transport.",
+      cust: "Hello! I'm Eezy AI, your Eezy Kasi assistant. I can help you find shops, products and transport, and show you how to use the app.",
       drv: "Hello, driver! I'm Eezy AI. Ask me about using Eezy Kasi, your driver profile and transport requests.",
       own: "Hello! I'm Eezy AI, your business assistant. Ask me about managing your shop, orders and promoting your business.",
       adm: "Hello! I'm Eezy AI. I can help explain Eezy Kasi's features and administrative workflows."
@@ -450,6 +456,223 @@
       showSuggestions(role);
       setLanguage(language);
     }
+  }
+
+  /* =====================================================
+     SMART TOWNSHIP SEARCH
+     Uses real results from the eezy-search function.
+     ===================================================== */
+
+  function isSearchRequest(message) {
+    const text = String(message || "").toLowerCase();
+
+    return /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby)\b/i.test(text) ||
+      /\b(kota|vetkoek|amagwinya|chicken|burger|pizza|chips|hotdog|hot-dog|russian|sandwich)\b/i.test(text) ||
+      /\b(ngifuna|ukuthenga|ngithola|ngingathenga|izitolo|umkhiqizo|imikhiqizo)\b/i.test(text);
+  }
+
+  function extractSearchTerm(message) {
+    let term = String(message || "")
+      .toLowerCase()
+      .replace(/[?!.,;:()[\]{}"'`]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const removeWords = [
+      "where can i", "where do i", "where is",
+      "can you", "could you", "please",
+      "help me", "show me", "find me",
+      "look for", "looking for", "search for",
+      "near me", "nearby", "around me",
+      "on eezy kasi", "on eezy",
+      "i want to buy", "i want", "i need",
+      "i am looking for", "do you have",
+      "do you sell", "who sells",
+      "available", "shops", "shop",
+      "products", "product", "items", "item",
+      "food", "store", "stores",
+      "buy", "sell", "selling", "find",
+      "search", "show", "me", "please",
+      "ngicela", "ngifuna", "ukuthenga",
+      "ngithola", "ngingathenga",
+      "izitolo", "umkhiqizo", "imikhiqizo",
+      "i", "a", "an", "the", "for", "at",
+      "to", "in", "on", "of", "is", "are",
+      "and", "or", "with"
+    ];
+
+    removeWords.forEach(word => {
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      term = term.replace(new RegExp("\\b" + escaped + "\\b", "gi"), " ");
+    });
+
+    term = term
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Keep the original message as a fallback if stripping
+    // common words accidentally removes the search phrase.
+    if (term.length < 2) {
+      term = String(message || "").trim();
+    }
+
+    return term.slice(0, 80);
+  }
+
+  function money(cents) {
+    if (cents === null || cents === undefined ||
+        !Number.isFinite(Number(cents))) {
+      return null;
+    }
+
+    return "R" + (Number(cents) / 100).toFixed(2);
+  }
+
+  function formatSearchResults(data) {
+    const shops = Array.isArray(data.shops) ? data.shops : [];
+    const products = Array.isArray(data.products) ? data.products : [];
+
+    if (!shops.length && !products.length) {
+      return language === "zu"
+        ? "Angitholanga isitolo noma umkhiqizo ohambisana nalokho okuseshile ezitolo ezivuliwe. Zama elinye igama lomkhiqizo."
+        : "I couldn't find a matching product or shop in the currently open shops. Try another product name or search term.";
+    }
+
+    const lines = [];
+
+    lines.push(
+      language === "zu"
+        ? "Nansi imiphumela engiyithole ku-Eezy Kasi:"
+        : "Here are the live results I found on Eezy Kasi:"
+    );
+
+    if (products.length) {
+      lines.push("");
+      lines.push(language === "zu" ? "IMIKHIQIZO:" : "PRODUCTS:");
+
+      products.forEach((product, index) => {
+        const shop = product.shop || {};
+        const shopName = shop.name || "Shop";
+        const area = shop.area ? " — " + shop.area : "";
+
+        lines.push("");
+        lines.push((index + 1) + ". " + product.name);
+        lines.push("   Shop: " + shopName + area);
+
+        const shopPrice = money(product.shop_price_cents);
+        const appPrice = money(product.app_price_cents);
+        const pickupPrice = money(product.pickup_price_cents);
+
+        if (shopPrice) lines.push("   Shop price: " + shopPrice);
+        if (appPrice) lines.push("   App price: " + appPrice);
+        if (pickupPrice) lines.push("   Pickup price: " + pickupPrice);
+
+        if (product.description) {
+          lines.push("   " + product.description);
+        }
+      });
+    }
+
+    if (shops.length) {
+      lines.push("");
+      lines.push(language === "zu" ? "IZITOLO:" : "SHOPS:");
+
+      shops.forEach((shop, index) => {
+        const area = shop.area ? " — " + shop.area : "";
+        lines.push((index + 1) + ". " + shop.name + area);
+
+        if (shop.category) {
+          lines.push("   Category: " + shop.category);
+        }
+
+        if (Array.isArray(shop.places) && shop.places.length) {
+          lines.push("   Places: " + shop.places.join(", "));
+        }
+      });
+    }
+
+    lines.push("");
+    lines.push(
+      language === "zu"
+        ? "Le miphumela ivela kudatha etholakalayo manje. Hlola imininingwane ngaphambi kokufaka i-oda."
+        : "These results come from the available shop data. Please check the details before placing an order."
+    );
+
+    return lines.join("\n");
+  }
+
+  async function requestWithSession(url, body) {
+    let token = sess && sess.access_token;
+
+    if (!token) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+
+    async function makeRequest(accessToken) {
+      return fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": SB_KEY,
+          "Authorization": "Bearer " + accessToken
+        },
+        body: JSON.stringify(body)
+      });
+    }
+
+    let response = await makeRequest(token);
+
+    if (response.status === 401 &&
+        typeof refreshSession === "function") {
+      await refreshSession();
+      token = sess && sess.access_token;
+
+      if (token) {
+        response = await makeRequest(token);
+      }
+    }
+
+    return response;
+  }
+
+  async function searchTownship(message) {
+    const query = extractSearchTerm(message);
+
+    if (!query || query.length < 2) {
+      throw new Error(
+        language === "zu"
+          ? "Sicela ubhale igama lomkhiqizo noma lesitolo."
+          : "Please enter a product or shop name to search."
+      );
+    }
+
+    const response = await requestWithSession(
+      SEARCH_FN,
+      { query }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error(
+          "Search is temporarily limited. Please try again later."
+        );
+      }
+
+      throw new Error(
+        data.error || data.message ||
+        "Eezy Search could not complete your search. Please try again."
+      );
+    }
+
+    if (!data.success) {
+      throw new Error(
+        data.error || "Eezy Search returned an unexpected result."
+      );
+    }
+
+    return formatSearchResults(data);
   }
 
   /* VOICE INPUT */
@@ -550,7 +773,7 @@
       "Voice recognition is not supported by this browser.";
   }
 
-  /* SEND MESSAGE TO SUPABASE */
+  /* SEND MESSAGE */
 
   async function sendMessage(message) {
     if (busy) return;
@@ -580,39 +803,27 @@
     );
 
     try {
-      let token = sess && sess.access_token;
+      /*
+       * Customers searching for shops or products are sent
+       * to the real database search function first.
+       * This does not use Anthropic credits.
+       */
+      if (role === "cust" && isSearchRequest(clean)) {
+        waiting.textContent =
+          language === "zu"
+            ? "Ngibheka ezitolo ezivuliwe..."
+            : "Searching available shops and products...";
 
-      if (!token) {
-        throw new Error("Your session has expired. Please sign in again.");
+        waiting.textContent = await searchTownship(clean);
+        return;
       }
 
-      async function request(accessToken) {
-        return fetch(FN, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": SB_KEY,
-            "Authorization": "Bearer " + accessToken
-          },
-          body: JSON.stringify({
-            kind: "assistant",
-            message: clean,
-            lang: language
-          })
-        });
-      }
-
-      let response = await request(token);
-
-      if (response.status === 401 &&
-          typeof refreshSession === "function") {
-        await refreshSession();
-        token = sess && sess.access_token;
-
-        if (token) {
-          response = await request(token);
-        }
-      }
+      /* Normal assistant conversation */
+      const response = await requestWithSession(FN, {
+        kind: "assistant",
+        message: clean,
+        lang: language
+      });
 
       const data = await response.json().catch(() => ({}));
 
@@ -632,7 +843,9 @@
       const answer = data.text || data.answer;
 
       if (!answer) {
-        throw new Error("Eezy AI returned an empty response. Please try again.");
+        throw new Error(
+          "Eezy AI returned an empty response. Please try again."
+        );
       }
 
       waiting.textContent = answer;
