@@ -1665,7 +1665,7 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-11-11a";
+const LEGAL_VERSION="policy-2026-11-11b";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p class="sub" style="margin:0 0 12px">Last updated: 11 November 2026.</p>
 <h3>Who we are</h3>
@@ -1690,7 +1690,9 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <li>Supply orders (shop owners): the supplier and delivery day you choose, the items and amounts you order, your payment reference, when you tapped “I have paid”, whether a refund is due to you, and when you confirmed that the goods arrived. We also use the shop name, cell number and area already on your account to deliver your order.</li>
 <li>Driver documents: if you drive, photos of your driver’s licence and your vehicle licence disc and, for trucks, your professional driving permit (PrDP) and proof of insurance, with their expiry dates. Only you and the Eezy Kasi admin can see them. Customers never see them.</li>
 <li>Ratings: the stars and short tags that customers and drivers give each other after a trip. The other person sees your average star rating once you have a few ratings, but never who gave which rating.</li>
-<li>Eezy AI (shop owners and admins only): when you tap Write, Translate or Promotion in the menu form, the item name, price, short note, language and kind of business (for example food) are sent to our AI provider, Anthropic, to write the text for you. We do not send customer names, cell numbers, addresses or orders to Eezy AI. We keep only a count of how many times you used it each day, to stop misuse. Please do not type other people's personal details into those boxes. The text you get back is a suggestion: read it and correct it before you use it.</li>
+<li>Eezy AI writing tools (shop owners and admins only): when you tap Write, Translate or Promotion in the menu form, the item name, price, short note, language and kind of business (for example food) are sent to our AI provider, Anthropic, to write the text for you. The text you get back is a suggestion: read it and correct it before you use it.</li>
+<li>Eezy AI assistant (logged-in customers, drivers, shop owners and admins): whatever you type or say to the assistant, and the language you chose, is sent to our AI provider, Anthropic, to write an answer. When a customer searches for food or a shop, the words of the search are used to look through the shops and products in our own database. We do not send your orders, addresses or cell number to the assistant, but anything you type to it is sent, so please do not type other people's personal details, ID numbers or passwords into it. We keep only a count of how many times you used Eezy AI each day, to stop misuse. The answers can be wrong: check them before you act.</li>
+<li>Listen and microphone (optional): if you tap Listen in English, your phone reads the answer aloud with its own voice and nothing is sent from the app. In isiZulu, the text of that answer is sent to Microsoft's Azure Speech service, through our server, to make the sound. If you tap the microphone, your phone's browser turns your voice into words, and the browser maker (for example Google or Apple) may process the sound on its own servers.</li>
 <li>Your wish list is saved only on your own phone. We never receive it.</li>
 </ul>
 <h3>Why we use it</h3>
@@ -1714,7 +1716,7 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <p>The app has a button that opens the Eezy Kasi Facebook Page. When you tap it you leave our app, and Facebook's own rules and privacy policy apply. We do not give Facebook anything about you from the app.</p>
 <h3>Where it is kept</h3>
 <p>Your information is stored with Supabase in a data centre in Ireland (eu-west-1). The app files are hosted by GitHub, and the security check is provided by Cloudflare. Emails the app sends you (such as sign-up confirmation and password reset) go through our email provider, Brevo, which sees your email address and the message. These companies handle information for us, and they are outside South Africa. We use providers that have security measures in place.</p>
-<p>Eezy AI sends the text described above to Anthropic, whose servers are outside South Africa. Anthropic handles it under its commercial terms, which do not allow text sent through its business service to be used to train its models.</p>
+<p>Eezy AI sends the text described above to Anthropic, whose servers are outside South Africa. Anthropic handles it under its commercial terms, which do not allow text sent through its business service to be used to train its models. The isiZulu voice uses Microsoft's Azure Speech service, set up in Microsoft's South Africa North region.</p>
 <p>To find places and work out distances for car rides, the app sends the words you search for, or the pick-up and drop-off points, to free map services run by OpenStreetMap (place search) and the OSRM project (road distance). Their servers are outside South Africa, and they can see your internet address. When you choose a spot on the map, your phone also loads map pictures from OpenStreetMap and the map tool from the cdnjs service, which can see your internet address too.</p>
 <p>If we send a supply packing list to a supplier by WhatsApp, WhatsApp’s own rules and servers (outside South Africa) apply to that message.</p>
 <p>If you turn on alerts, they are sent through your phone’s own alert service (for example Google, Apple or your browser maker). Those servers are outside South Africa.</p>
