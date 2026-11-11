@@ -775,6 +775,24 @@
   }
 
   function formatSearchResults(data) {
+         const affordableSearch =
+      /\b(affordable|cheap|cheapest|budget)\b/i.test(
+        String(data.filters?.query || "")
+      );
+
+    if (affordableSearch && Array.isArray(data.products)) {
+      data.products.sort((a, b) => {
+        const getPrice = product =>
+          Number(
+            product.pickup_price_cents ??
+            product.app_price_cents ??
+            product.shop_price_cents ??
+            Number.MAX_SAFE_INTEGER
+          );
+
+        return getPrice(a) - getPrice(b);
+      });
+    }
     const shops = Array.isArray(data.shops) ? data.shops : [];
     const products = Array.isArray(data.products) ? data.products : [];
 
