@@ -1,10 +1,12 @@
 
 /* =========================================================
    EEZY AI — YOUR TOWNSHIP DIGITAL ASSISTANT
-   Chat, smart township search, voice input, English/isiZulu.
-   Uses:
-   - eezy-search for real shop and product discovery
-   - super-processor for normal AI conversations
+   Chat, Smart Township Search, Voice Input.
+   English and isiZulu.
+   
+   Normal AI: super-processor
+   Real shop/product search: eezy-search
+   Voice output: handled separately by eezy-voice.js
    ========================================================= */
 
 (() => {
@@ -14,6 +16,10 @@
 
   const FN = SB_URL + "/functions/v1/super-processor";
   const SEARCH_FN = SB_URL + "/functions/v1/eezy-search";
+
+  /* =====================================================
+     STYLES
+     ===================================================== */
 
   const STYLE = `
     #eezy-ai-launcher {
@@ -237,6 +243,10 @@
   style.textContent = STYLE;
   document.head.appendChild(style);
 
+  /* =====================================================
+     INTERFACE
+     ===================================================== */
+
   const launcher = document.createElement("button");
   launcher.id = "eezy-ai-launcher";
   launcher.type = "button";
@@ -301,10 +311,15 @@
   const roleLabel = panel.querySelector("#eezy-ai-role");
   const suggestions = panel.querySelector("#eezy-ai-suggestions");
 
+  /* =====================================================
+     STATE
+     ===================================================== */
+
   let language =
     localStorage.getItem("inanda_lang") === "zu" ? "zu" : "en";
 
   let activeUserId = null;
+  let activeRole = null;
   let busy = false;
   let recognition = null;
   let listening = false;
@@ -320,8 +335,8 @@
   const suggestionsByRole = {
     cust: [
       ["Find a shop", "Help me find shops and products on Eezy Kasi."],
-      ["Find Kota", "Where can I buy Kota?"],
-      ["Book transport", "How do I request a ride or transport?"],
+      ["Find Kota", "Find me Kota"],
+      ["Find affordable food", "Find food under R30"],
       ["Using the app", "Show me how to use Eezy Kasi."]
     ],
     drv: [
@@ -339,6 +354,10 @@
       ["Platform help", "What should I check when helping a user?"]
     ]
   };
+
+  /* =====================================================
+     USER AND MESSAGE HELPERS
+     ===================================================== */
 
   function currentRole() {
     try {
@@ -359,7 +378,7 @@
   function addMessage(text, who) {
     const bubble = document.createElement("div");
     bubble.className = "eezy-ai-message " + who;
-    bubble.textContent = text;
+    bubble.textContent = String(text || "");
     messages.appendChild(bubble);
     messages.scrollTop = messages.scrollHeight;
     return bubble;
@@ -390,23 +409,33 @@
     listening = false;
     micButton.classList.remove("listening");
     micButton.textContent = "🎙️";
+    micButton.title = "Tap to speak";
   }
 
+  /* =====================================================
+     LANGUAGE
+     ===================================================== */
+
   function setLanguage(next) {
-    language = next;
-    localStorage.setItem("inanda_lang", next);
+    language = next === "zu" ? "zu" : "en";
+
+    try {
+      localStorage.setItem("inanda_lang", language);
+    } catch (_) {}
 
     panel.querySelector("#eezy-ai-en").style.fontWeight =
-      next === "en" ? "700" : "400";
+      language === "en" ? "700" : "400";
 
     panel.querySelector("#eezy-ai-zu").style.fontWeight =
-      next === "zu" ? "700" : "400";
+      language === "zu" ? "700" : "400";
 
     input.placeholder =
-      next === "zu" ? "Buza u-Eezy AI..." : "Ask Eezy AI anything...";
+      language === "zu"
+        ? "Buza u-Eezy AI..."
+        : "Ask Eezy AI anything...";
 
     if (recognition) {
-      recognition.lang = next === "zu" ? "zu-ZA" : "en-ZA";
+      recognition.lang = language === "zu" ? "zu-ZA" : "en-ZA";
     }
 
     if (messages.children.length === 1) {
@@ -433,10 +462,16 @@
       });
   }
 
+  /* =====================================================
+     LOGIN / ROLE VISIBILITY
+     ===================================================== */
+
   function sync() {
     const role = currentRole();
     const id = currentId();
-    const allowed = !!id && ["cust", "drv", "own", "adm"].includes(role);
+
+    const allowed =
+      !!id && ["cust", "drv", "own", "adm"].includes(role);
 
     launcher.hidden = !allowed;
 
@@ -444,168 +479,174 @@
       panel.hidden = true;
       stopVoice();
       activeUserId = null;
+      activeRole = null;
       return;
     }
 
-    if (activeUserId !== id) {
+    if (activeUserId !== id || activeRole !== role) {
       stopVoice();
+
       activeUserId = id;
+      activeRole = role;
+
       messages.replaceChildren();
       roleLabel.textContent = roleNames[role] || "Your assistant";
+
       addMessage(greeting(role), "bot");
       showSuggestions(role);
-      setLanguage(language);
     }
   }
 
   /* =====================================================
      SMART TOWNSHIP SEARCH
-     Uses real results from the eezy-search function.
      ===================================================== */
 
   function isSearchRequest(message) {
     const text = String(message || "").toLowerCase();
 
-    return /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby)\b/i.test(text) ||
+    return (
+      /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby)\b/i.test(text) ||
       /\b(kota|vetkoek|amagwinya|chicken|burger|pizza|chips|hotdog|hot-dog|russian|sandwich)\b/i.test(text) ||
-      /\b(ngifuna|ukuthenga|ngithola|ngingathenga|izitolo|umkhiqizo|imikhiqizo)\b/i.test(text);
+      /\b(ngifuna|ngitholele|ngibheke|ukuthenga|ngithola|ngingathenga|izitolo|umkhiqizo|imikhiqizo)\b/i.test(text)
+    );
   }
 
-  function extractSearchTerm(message) {
-    let term = String(message || "")
+  function understandSearch(message) {
+    let text = String(message || "")
       .toLowerCase()
       .replace(/[?!.,;:()[\]{}"'`]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-    const removeWords = [
-      "where can i", "where do i", "where is",
-      "can you", "could you", "please",
-      "help me", "show me", "find me",
-      "look for", "looking for", "search for",
-      "near me", "nearby", "around me",
-      "on eezy kasi", "on eezy",
-      "i want to buy", "i want", "i need",
-      "i am looking for", "do you have",
-      "do you sell", "who sells",
-      "available", "shops", "shop",
-      "products", "product", "items", "item",
-      "food", "store", "stores",
-      "buy", "sell", "selling", "find",
-      "search", "show", "me", "please",
-      "ngicela", "ngifuna", "ukuthenga",
-      "ngithola", "ngingathenga",
-      "izitolo", "umkhiqizo", "imikhiqizo",
-      "i", "a", "an", "the", "for", "at",
-      "to", "in", "on", "of", "is", "are",
-      "and", "or", "with"
+    if (!isSearchRequest(text)) return null;
+
+    let area = "";
+    let maxPrice = null;
+
+    /* Extract maximum price, for example: under R30 */
+    const pricePattern =
+      /\b(?:under|below|less than|max(?:imum)?|up to|ngaphansi kuka)\s*r?\s*(\d+(?:\.\d{1,2})?)/i;
+
+    const priceMatch = text.match(pricePattern);
+
+    if (priceMatch) {
+      maxPrice = Number(priceMatch[1]);
+      text = text.replace(pricePattern, " ");
+    }
+
+    /* Extract an area, for example: in Geneva or near Inanda */
+    const areaPattern =
+      /\b(?:in|near|around)\s+([a-z][a-z\s-]*?)(?=\s+(?:under|below|less than|max(?:imum)?|up to)\b|$)/i;
+
+    const areaMatch = text.match(areaPattern);
+
+    if (areaMatch) {
+      const candidate = areaMatch[1].trim();
+
+      if (candidate && !/^(me|my area)$/i.test(candidate)) {
+        area = candidate;
+      }
+
+      text = text.replace(areaPattern, " ");
+    }
+
+    /* Recognise common isiZulu location spelling such as eGeneva */
+    const zuluAreaMatch = text.match(/\be([a-z][a-z-]{2,})\b/i);
+
+    if (!area && zuluAreaMatch) {
+      area = zuluAreaMatch[1];
+      text = text.replace(zuluAreaMatch[0], " ");
+    }
+
+    /* Remove search instructions, leaving the product/shop name */
+    const removePhrases = [
+      /\bwhere can i get\b/gi,
+      /\bwhere can i buy\b/gi,
+      /\bwhere do i find\b/gi,
+      /\bi am looking for\b/gi,
+      /\bi'm looking for\b/gi,
+      /\blooking for\b/gi,
+      /\bsearch for\b/gi,
+      /\blook for\b/gi,
+      /\bfind me\b/gi,
+      /\bshow me\b/gi,
+      /\bhelp me find\b/gi,
+      /\bi want to buy\b/gi,
+      /\bi want\b/gi,
+      /\bi need\b/gi,
+      /\bdo you have\b/gi,
+      /\bdo you sell\b/gi,
+      /\bwho sells\b/gi,
+      /\bplease\b/gi,
+      /\bngitholele\b/gi,
+      /\bngibheke\b/gi,
+      /\bngifuna\b/gi,
+      /\bukuthenga\b/gi,
+      /\bngingathenga\b/gi,
+      /\bngithola\b/gi,
+      /\bnear me\b/gi,
+      /\bnearby\b/gi,
+      /\baround me\b/gi,
+      /\bon eezy kasi\b/gi,
+      /\bon eezy\b/gi,
+      /\bshops?\b/gi,
+      /\bproducts?\b/gi,
+      /\bitems?\b/gi,
+      /\bfood\b/gi,
+      /\bstores?\b/gi,
+      /\bavailable\b/gi,
+      /\bselling\b/gi,
+      /\bsell\b/gi,
+      /\bbuy\b/gi,
+      /\bfind\b/gi,
+      /\bsearch\b/gi,
+      /\bshow\b/gi,
+      /\bme\b/gi,
+      /\bplease\b/gi,
+      /\bthe\b/gi,
+      /\ba\b/gi,
+      /\ban\b/gi,
+      /\bi\b/gi,
+      /\bfor\b/gi,
+      /\bto\b/gi,
+      /\bon\b/gi,
+      /\bof\b/gi,
+      /\bis\b/gi,
+      /\bare\b/gi,
+      /\band\b/gi
     ];
 
-    removeWords.forEach(word => {
-      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      term = term.replace(new RegExp("\\b" + escaped + "\\b", "gi"), " ");
+    removePhrases.forEach(pattern => {
+      text = text.replace(pattern, " ");
     });
 
-    term = term
+    /* Convert isiZulu prefix iKota to Kota */
+    text = text.replace(/\bi(?=[a-z])/gi, "");
+
+    const query = text
       .replace(/\s+/g, " ")
-      .trim();
+      .trim()
+      .slice(0, 80);
 
-    // Keep the original message as a fallback if stripping
-    // common words accidentally removes the search phrase.
-    if (term.length < 2) {
-      term = String(message || "").trim();
-    }
-
-    return term.slice(0, 80);
+    return {
+      query,
+      area,
+      max_price_rands: maxPrice
+    };
   }
 
-  function money(cents) {
-    if (cents === null || cents === undefined ||
-        !Number.isFinite(Number(cents))) {
-      return null;
-    }
-
-    return "R" + (Number(cents) / 100).toFixed(2);
-  }
-
-  function formatSearchResults(data) {
-    const shops = Array.isArray(data.shops) ? data.shops : [];
-    const products = Array.isArray(data.products) ? data.products : [];
-
-    if (!shops.length && !products.length) {
-      return language === "zu"
-        ? "Angitholanga isitolo noma umkhiqizo ohambisana nalokho okuseshile ezitolo ezivuliwe. Zama elinye igama lomkhiqizo."
-        : "I couldn't find a matching product or shop in the currently open shops. Try another product name or search term.";
-    }
-
-    const lines = [];
-
-    lines.push(
-      language === "zu"
-        ? "Nansi imiphumela engiyithole ku-Eezy Kasi:"
-        : "Here are the live results I found on Eezy Kasi:"
-    );
-
-    if (products.length) {
-      lines.push("");
-      lines.push(language === "zu" ? "IMIKHIQIZO:" : "PRODUCTS:");
-
-      products.forEach((product, index) => {
-        const shop = product.shop || {};
-        const shopName = shop.name || "Shop";
-        const area = shop.area ? " — " + shop.area : "";
-
-        lines.push("");
-        lines.push((index + 1) + ". " + product.name);
-        lines.push("   Shop: " + shopName + area);
-
-        const shopPrice = money(product.shop_price_cents);
-        const appPrice = money(product.app_price_cents);
-        const pickupPrice = money(product.pickup_price_cents);
-
-        if (shopPrice) lines.push("   Shop price: " + shopPrice);
-        if (appPrice) lines.push("   App price: " + appPrice);
-        if (pickupPrice) lines.push("   Pickup price: " + pickupPrice);
-
-        if (product.description) {
-          lines.push("   " + product.description);
-        }
-      });
-    }
-
-    if (shops.length) {
-      lines.push("");
-      lines.push(language === "zu" ? "IZITOLO:" : "SHOPS:");
-
-      shops.forEach((shop, index) => {
-        const area = shop.area ? " — " + shop.area : "";
-        lines.push((index + 1) + ". " + shop.name + area);
-
-        if (shop.category) {
-          lines.push("   Category: " + shop.category);
-        }
-
-        if (Array.isArray(shop.places) && shop.places.length) {
-          lines.push("   Places: " + shop.places.join(", "));
-        }
-      });
-    }
-
-    lines.push("");
-    lines.push(
-      language === "zu"
-        ? "Le miphumela ivela kudatha etholakalayo manje. Hlola imininingwane ngaphambi kokufaka i-oda."
-        : "These results come from the available shop data. Please check the details before placing an order."
-    );
-
-    return lines.join("\n");
-  }
+  /* =====================================================
+     AUTHENTICATED REQUEST HELPER
+     Refreshes an expired session once.
+     ===================================================== */
 
   async function requestWithSession(url, body) {
     let token = sess && sess.access_token;
 
     if (!token) {
-      throw new Error("Your session has expired. Please sign in again.");
+      throw new Error(
+        "Your session has expired. Please sign in again."
+      );
     }
 
     async function makeRequest(accessToken) {
@@ -622,8 +663,10 @@
 
     let response = await makeRequest(token);
 
-    if (response.status === 401 &&
-        typeof refreshSession === "function") {
+    if (
+      response.status === 401 &&
+      typeof refreshSession === "function"
+    ) {
       await refreshSession();
       token = sess && sess.access_token;
 
@@ -635,20 +678,22 @@
     return response;
   }
 
-  async function searchTownship(message) {
-    const query = extractSearchTerm(message);
+  /* =====================================================
+     SEARCH REQUEST
+     ===================================================== */
 
-    if (!query || query.length < 2) {
+  async function searchTownship(filters) {
+    if (!filters.query && !filters.area && !filters.max_price_rands) {
       throw new Error(
         language === "zu"
-          ? "Sicela ubhale igama lomkhiqizo noma lesitolo."
-          : "Please enter a product or shop name to search."
+          ? "Sicela usho igama lomkhiqizo noma indawo."
+          : "Please enter a product, shop or area to search."
       );
     }
 
     const response = await requestWithSession(
       SEARCH_FN,
-      { query }
+      filters
     );
 
     const data = await response.json().catch(() => ({}));
@@ -672,13 +717,114 @@
       );
     }
 
-    return formatSearchResults(data);
+    return data;
   }
 
-  /* VOICE INPUT */
+  /* =====================================================
+     SEARCH RESULTS
+     ===================================================== */
+
+  function money(cents) {
+    if (
+      cents === null ||
+      cents === undefined ||
+      !Number.isFinite(Number(cents))
+    ) {
+      return null;
+    }
+
+    return "R" + (Number(cents) / 100).toFixed(2);
+  }
+
+  function formatSearchResults(data) {
+    const shops = Array.isArray(data.shops) ? data.shops : [];
+    const products = Array.isArray(data.products) ? data.products : [];
+
+    if (!shops.length && !products.length) {
+      return language === "zu"
+        ? "Angitholanga isitolo noma umkhiqizo ohambisana nalokho okuseshile ezitolo ezivuliwe. Zama elinye igama noma indawo."
+        : "I couldn't find a matching product or shop in the currently open shops. Try another product name, shop or area.";
+    }
+
+    const lines = [];
+
+    lines.push(
+      language === "zu"
+        ? "Nansi imiphumela engiyithole ku-Eezy Kasi:"
+        : "Here are the live results I found on Eezy Kasi:"
+    );
+
+    if (products.length) {
+      lines.push("");
+      lines.push(language === "zu" ? "IMIKHIQIZO:" : "PRODUCTS:");
+
+      products.forEach((product, index) => {
+        const shop = product.shop || {};
+        const shopName = shop.name || "Shop";
+        const area = shop.area ? " — " + shop.area : "";
+
+        lines.push("");
+        lines.push((index + 1) + ". " + product.name);
+        lines.push("   Shop: " + shopName + area);
+
+        const pickupPrice = money(product.pickup_price_cents);
+        const appPrice = money(product.app_price_cents);
+        const shopPrice = money(product.shop_price_cents);
+
+        if (pickupPrice) {
+          lines.push("   Pickup price: " + pickupPrice);
+        }
+
+        if (appPrice) {
+          lines.push("   App price: " + appPrice);
+        }
+
+        if (shopPrice) {
+          lines.push("   Shop price: " + shopPrice);
+        }
+
+        if (product.description) {
+          lines.push("   " + product.description);
+        }
+      });
+    }
+
+    if (shops.length) {
+      lines.push("");
+      lines.push(language === "zu" ? "IZITOLO:" : "SHOPS:");
+
+      shops.forEach((shop, index) => {
+        const area = shop.area ? " — " + shop.area : "";
+
+        lines.push((index + 1) + ". " + shop.name + area);
+
+        if (shop.category) {
+          lines.push("   Category: " + shop.category);
+        }
+
+        if (Array.isArray(shop.places) && shop.places.length) {
+          lines.push("   Places: " + shop.places.join(", "));
+        }
+      });
+    }
+
+    lines.push("");
+    lines.push(
+      language === "zu"
+        ? "Le miphumela ivela kudatha etholakalayo manje. Hlola imininingwane ngaphambi kokufaka i-oda."
+        : "These results come from available shop data. Please check the details before placing an order."
+    );
+
+    return lines.join("\n");
+  }
+
+  /* =====================================================
+     VOICE INPUT
+     ===================================================== */
 
   const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
 
   if (SpeechRecognition) {
     recognition = new SpeechRecognition();
@@ -700,11 +846,17 @@
 
       for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
-        if (event.results[i].isFinal) hasFinalResult = true;
+
+        if (event.results[i].isFinal) {
+          hasFinalResult = true;
+        }
       }
 
       const separator = voiceBaseText.trim() ? " " : "";
-      input.value = (voiceBaseText + separator + transcript).slice(0, 1000);
+
+      input.value = (
+        voiceBaseText + separator + transcript
+      ).slice(0, 1000);
 
       if (hasFinalResult) {
         input.focus();
@@ -722,7 +874,8 @@
 
       if (event.error !== "aborted") {
         addMessage(
-          errors[event.error] || "Voice recognition encountered a problem.",
+          errors[event.error] ||
+          "Voice recognition encountered a problem.",
           "bot"
         );
       }
@@ -773,18 +926,26 @@
       "Voice recognition is not supported by this browser.";
   }
 
-  /* SEND MESSAGE */
+  /* =====================================================
+     SEND MESSAGE
+     Smart Search first for customer search requests.
+     Normal AI for all other conversations.
+     ===================================================== */
 
   async function sendMessage(message) {
     if (busy) return;
 
     const clean = String(message || "").trim().slice(0, 1000);
+
     if (clean.length < 2) return;
 
     const role = currentRole();
 
     if (!role || !currentId()) {
-      addMessage("Please sign in again to use Eezy AI.", "bot");
+      addMessage(
+        "Please sign in again to use Eezy AI.",
+        "bot"
+      );
       return;
     }
 
@@ -798,23 +959,26 @@
     sendButton.textContent = "...";
 
     const waiting = addMessage(
-      language === "zu" ? "Ngicela ulinde..." : "Eezy AI is thinking...",
+      language === "zu"
+        ? "Ngicela ulinde..."
+        : "Eezy AI is thinking...",
       "bot"
     );
 
     try {
-      /*
-       * Customers searching for shops or products are sent
-       * to the real database search function first.
-       * This does not use Anthropic credits.
-       */
-      if (role === "cust" && isSearchRequest(clean)) {
+      const searchFilters = understandSearch(clean);
+
+      /* Real database search for customers */
+      if (role === "cust" && searchFilters) {
         waiting.textContent =
           language === "zu"
             ? "Ngibheka ezitolo ezivuliwe..."
             : "Searching available shops and products...";
 
-        waiting.textContent = await searchTownship(clean);
+        const searchData = await searchTownship(searchFilters);
+
+        waiting.textContent = formatSearchResults(searchData);
+
         return;
       }
 
@@ -835,7 +999,8 @@
         }
 
         throw new Error(
-          data.error || data.message ||
+          data.error ||
+          data.message ||
           "Eezy AI could not respond. Please try again later."
         );
       }
@@ -852,7 +1017,9 @@
 
     } catch (error) {
       waiting.textContent =
-        error.message || "Something went wrong. Please try again.";
+        error && error.message
+          ? error.message
+          : "Something went wrong. Please try again.";
 
     } finally {
       busy = false;
@@ -863,7 +1030,9 @@
     }
   }
 
-  /* BUTTONS AND EVENTS */
+  /* =====================================================
+     BUTTONS AND EVENTS
+     ===================================================== */
 
   launcher.addEventListener("click", () => {
     panel.hidden = false;
@@ -897,22 +1066,31 @@
     }
   });
 
+  /* =====================================================
+     INITIALISE
+     ===================================================== */
+
   setLanguage(language);
   sync();
 
   const observer = new MutationObserver(sync);
+
   const app = document.getElementById("app");
   const bar = document.getElementById("bar");
 
-  if (app) observer.observe(app, {
-    childList: true,
-    subtree: true
-  });
+  if (app) {
+    observer.observe(app, {
+      childList: true,
+      subtree: true
+    });
+  }
 
-  if (bar) observer.observe(bar, {
-    childList: true,
-    subtree: true
-  });
+  if (bar) {
+    observer.observe(bar, {
+      childList: true,
+      subtree: true
+    });
+  }
 
   window.addEventListener("focus", sync);
 
