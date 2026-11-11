@@ -3,7 +3,7 @@
    EEZY AI — YOUR TOWNSHIP DIGITAL ASSISTANT
    Chat, Smart Township Search, Voice Input.
    English and isiZulu.
-   
+
    Normal AI: super-processor
    Real shop/product search: eezy-search
    Voice output: handled separately by eezy-voice.js
@@ -334,9 +334,9 @@
 
   const suggestionsByRole = {
     cust: [
-      ["Find a shop", "Help me find shops and products on Eezy Kasi."],
+      ["Find a shop", "Find a shop"],
       ["Find Kota", "Find me Kota"],
-      ["Find affordable food", "Find food under R30"],
+      ["Find affordable food", "Find affordable food"],
       ["Using the app", "Show me how to use Eezy Kasi."]
     ],
     drv: [
@@ -505,9 +505,9 @@
     const text = String(message || "").toLowerCase();
 
     return (
-      /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby)\b/i.test(text) ||
-      /\b(kota|vetkoek|amagwinya|chicken|burger|pizza|chips|hotdog|hot-dog|russian|sandwich)\b/i.test(text) ||
-      /\b(ngifuna|ngitholele|ngibheke|ukuthenga|ngithola|ngingathenga|izitolo|umkhiqizo|imikhiqizo)\b/i.test(text)
+      /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby|affordable|cheap|cheapest|meals?|food|groceries)\b/i.test(text) ||
+      /\b(kota|vetkoek|amagwinya|chicken|burger|pizza|chips|hotdog|hot-dog|russian|sandwich|indomie)\b/i.test(text) ||
+      /\b(ngifuna|ngitholele|ngibheke|ukuthenga|ngithola|ngingathenga|izitolo|umkhiqizo|imikhiqizo|ukudla)\b/i.test(text)
     );
   }
 
@@ -523,7 +523,7 @@
     let area = "";
     let maxPrice = null;
 
-    /* Extract maximum price, for example: under R30 */
+    /* Extract explicit maximum price, for example: under R30 */
     const pricePattern =
       /\b(?:under|below|less than|max(?:imum)?|up to|ngaphansi kuka)\s*r?\s*(\d+(?:\.\d{1,2})?)/i;
 
@@ -550,7 +550,7 @@
       text = text.replace(areaPattern, " ");
     }
 
-    /* Recognise common isiZulu location spelling such as eGeneva */
+    /* Recognise isiZulu location spelling such as eGeneva */
     const zuluAreaMatch = text.match(/\be([a-z][a-z-]{2,})\b/i);
 
     if (!area && zuluAreaMatch) {
@@ -558,7 +558,7 @@
       text = text.replace(zuluAreaMatch[0], " ");
     }
 
-    /* Remove search instructions, leaving the product/shop name */
+    /* Remove search instructions, but keep useful search terms. */
     const removePhrases = [
       /\bwhere can i get\b/gi,
       /\bwhere can i buy\b/gi,
@@ -592,7 +592,6 @@
       /\bshops?\b/gi,
       /\bproducts?\b/gi,
       /\bitems?\b/gi,
-      /\bfood\b/gi,
       /\bstores?\b/gi,
       /\bavailable\b/gi,
       /\bselling\b/gi,
@@ -602,7 +601,6 @@
       /\bsearch\b/gi,
       /\bshow\b/gi,
       /\bme\b/gi,
-      /\bplease\b/gi,
       /\bthe\b/gi,
       /\ba\b/gi,
       /\ban\b/gi,
@@ -613,25 +611,49 @@
       /\bof\b/gi,
       /\bis\b/gi,
       /\bare\b/gi,
-      /\band\b/gi
+      /\band\b/gi,
+      /\baffordable\b/gi,
+      /\bcheap(?:est)?\b/gi
     ];
 
     removePhrases.forEach(pattern => {
       text = text.replace(pattern, " ");
     });
 
-    /* Convert isiZulu prefix iKota to Kota */
-    text = text.replace(/\bi(?=[a-z])/gi, "");
+    /*
+     * Map broad food words to the food category search term.
+     * Do not delete "food": the backend needs to receive it.
+     */
+    text = text.replace(/\bmeals?\b/gi, "food");
+
+    /*
+     * Convert known isiZulu product spelling iKota to Kota.
+     * Do not strip the letter i from every word:
+     * that would damage names such as Indomie.
+     */
+    text = text.replace(/\bikota\b/gi, "kota");
 
     const query = text
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 80);
 
+    /*
+     * A generic shop request can browse open shops.
+     * Empty query is allowed through to the search endpoint.
+     */
+    const browseAll =
+      !query && !area && maxPrice === null;
+
+    if (!query && !area && maxPrice === null && !browseAll) {
+      return null;
+    }
+
     return {
       query,
       area,
-      max_price_rands: maxPrice
+      max_price_rands: maxPrice,
+      browse_all: browseAll
     };
   }
 
@@ -683,7 +705,12 @@
      ===================================================== */
 
   async function searchTownship(filters) {
-    if (!filters.query && !filters.area && !filters.max_price_rands) {
+    if (
+      !filters.query &&
+      !filters.area &&
+      filters.max_price_rands === null &&
+      !filters.browse_all
+    ) {
       throw new Error(
         language === "zu"
           ? "Sicela usho igama lomkhiqizo noma indawo."
@@ -743,7 +770,7 @@
     if (!shops.length && !products.length) {
       return language === "zu"
         ? "Angitholanga isitolo noma umkhiqizo ohambisana nalokho okuseshile ezitolo ezivuliwe. Zama elinye igama noma indawo."
-        : "I couldn't find a matching product or shop in the currently open shops. Try another product name, shop or area.";
+        : "I couldn't find a matching product or shop in the currently open shops. Try another product name or search term.";
     }
 
     const lines = [];
