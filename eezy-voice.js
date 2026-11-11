@@ -1,8 +1,8 @@
 
 /* =========================================================
-   EEZY AI — VOICE OUTPUT
-   Adds spoken replies without changing the existing assistant.
-   Uses the browser's built-in speech synthesis.
+   EEZY AI — ENGLISH + NATURAL ISIZULU VOICE
+   English: Browser speech synthesis
+   isiZulu: Azure Speech through Supabase Edge Function
    ========================================================= */
 
 (() => {
@@ -11,9 +11,13 @@
   if (window.EezyVoiceLoaded) return;
   window.EezyVoiceLoaded = true;
 
+  const SPEECH_URL =
+    SB_URL + "/functions/v1/eezy-speech";
+
   const STYLE = `
     .eezy-ai-speech-controls {
       display: flex;
+      flex-wrap: wrap;
       gap: 7px;
       margin-top: 8px;
     }
@@ -30,7 +34,13 @@
 
     .eezy-ai-speech-controls button:disabled {
       opacity: .5;
-      cursor: default;
+      cursor: wait;
+    }
+
+    .eezy-ai-voice-status {
+      width: 100%;
+      font: 11px system-ui, sans-serif;
+      color: var(--muted, #777);
     }
   `;
 
@@ -39,22 +49,41 @@
   style.textContent = STYLE;
   document.head.appendChild(style);
 
-  if (!("speechSynthesis" in window) ||
-      !("SpeechSynthesisUtterance" in window)) {
-    console.warn("Eezy AI: speech output is not supported.");
-    return;
-  }
-
   let activeButton = null;
+  let activeAudio = null;
+  let activeObjectUrl = null;
+  let activeRequest = null;
 
-  function stopSpeaking() {
-    window.speechSynthesis.cancel();
-
+  function resetButton() {
     if (activeButton) {
       activeButton.textContent = "🔊 Listen";
       activeButton.disabled = false;
       activeButton = null;
     }
+  }
+
+  function stopSpeaking() {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    if (activeRequest) {
+      activeRequest.abort();
+      activeRequest = null;
+    }
+
+    if (activeAudio) {
+      activeAudio.pause();
+      activeAudio.currentTime = 0;
+      activeAudio = null;
+    }
+
+    if (activeObjectUrl) {
+      URL.revokeObjectURL(activeObjectUrl);
+      activeObjectUrl = null;
+    }
+
+    resetButton();
   }
 
   function getMessageText(bubble) {
@@ -67,21 +96,167 @@
     return copy.textContent.trim();
   }
 
-  function speakMessage(bubble, button) {
-    const text = getMessageText(bubble);
+  function finishPlayback(button) {
+    if (activeButton === button) {
+      if (activeAudio) activeAudio = null;
 
-    if (!text) return;
+      if (activeObjectUrl) {
+        URL.revokeObjectURL(activeObjectUrl);
+        activeObjectUrl = null;
+      }
 
-    stopSpeaking();
+      activeRequest = null;
+      resetButton();
+    }
+  }
 
-    const language =
-      localStorage.getItem("inanda_lang") === "zu"
-        ? "zu-ZA"
-        : "en-ZA";
+  function showError(button, message) {
+    button.disabled = false;
+    button.textContent = "🔊 Try again";
+    button.title = message;
+
+    const controls = button.closest(
+      ".eezy-ai-speech-controls"
+    );
+
+    const status = controls?.querySelector(
+      ".eezy-ai-voice-status"
+    );
+
+    if (status) {
+      status.textContent = message;
+    }
+
+    if (activeButton === button) {
+      activeButton = null;
+    }
+  }
+
+  async function speakZulu(text, button) {
+    if (!window.isSecureContext) {
+      showError(button, "Voice playback requires HTTPS.");
+      return;
+    }
+
+    const session = typeof sess !== "undefined" ? sess : null;
+    let token = session && session.access_token;
+
+    if (!token) {
+      showError(button, "Please sign in again.");
+      return;
+    }
+
+    activeButton = button;
+    button.textContent = "🔊 Loading isiZulu...";
+    button.disabled = true;
+
+    const controls = button.closest(
+      ".eezy-ai-speech-controls"
+    );
+
+    const status = controls?.querySelector(
+      ".eezy-ai-voice-status"
+    );
+
+    if (status) status.textContent = "";
+
+    activeRequest = new AbortController();
+
+    try {
+      async function requestSpeech(accessToken) {
+        return fetch(SPEECH_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SB_KEY,
+            "Authorization": "Bearer " + accessToken
+          },
+          body: JSON.stringify({ text }),
+          signal: activeRequest.signal
+        });
+      }
+
+      let response = await requestSpeech(token);
+
+      if (
+        response.status === 401 &&
+        typeof refreshSession === "function"
+      ) {
+        await refreshSession();
+
+        const refreshed =
+          typeof sess !== "undefined" ? sess : null;
+
+        token = refreshed && refreshed.access_token;
+
+        if (token) {
+          response = await requestSpeech(token);
+        }
+      }
+
+      if (!response.ok) {
+        let errorMessage = "Could not generate isiZulu audio.";
+
+        try {
+          const data = await response.json();
+          if (data.error) errorMessage = data.error;
+        } catch (_) {}
+
+        throw new Error(errorMessage);
+      }
+
+      const audioBlob = await response.blob();
+
+      if (!audioBlob.size) {
+        throw new Error("The speech service returned empty audio.");
+      }
+
+      if (activeButton !== button) return;
+
+      activeObjectUrl = URL.createObjectURL(audioBlob);
+      activeAudio = new Audio(activeObjectUrl);
+
+      activeAudio.onended = () => {
+        finishPlayback(button);
+      };
+
+      activeAudio.onerror = () => {
+        finishPlayback(button);
+        showError(button, "Audio playback failed. Please try again.");
+      };
+
+      button.textContent = "🔊 Speaking...";
+
+      await activeAudio.play();
+
+    } catch (error) {
+      if (error.name === "AbortError") return;
+
+      console.error("Eezy AI voice error:", error);
+
+      if (activeButton === button) {
+        resetButton();
+      }
+
+      showError(
+        button,
+        error.message || "Voice service unavailable."
+      );
+    }
+  }
+
+  function speakEnglish(text, button) {
+    if (
+      !("speechSynthesis" in window) ||
+      !("SpeechSynthesisUtterance" in window)
+    ) {
+      showError(button, "English speech is not supported here.");
+      return;
+    }
 
     const utterance = new SpeechSynthesisUtterance(text);
 
-    utterance.lang = language;
+    utterance.lang = "en-ZA";
     utterance.rate = 0.95;
     utterance.pitch = 1;
     utterance.volume = 1;
@@ -89,11 +264,9 @@
     const voices = window.speechSynthesis.getVoices();
 
     const matchingVoice = voices.find(voice =>
-      voice.lang.toLowerCase() === language.toLowerCase()
+      voice.lang.toLowerCase() === "en-za"
     ) || voices.find(voice =>
-      voice.lang.toLowerCase().startsWith(
-        language.substring(0, 2).toLowerCase()
-      )
+      voice.lang.toLowerCase().startsWith("en")
     );
 
     if (matchingVoice) {
@@ -104,23 +277,33 @@
     button.textContent = "🔊 Speaking...";
     button.disabled = true;
 
-    utterance.onend = () => {
-      if (activeButton === button) {
-        button.textContent = "🔊 Listen";
-        button.disabled = false;
-        activeButton = null;
-      }
-    };
+    utterance.onend = () => finishPlayback(button);
 
     utterance.onerror = () => {
-      if (activeButton === button) {
-        button.textContent = "🔊 Listen";
-        button.disabled = false;
-        activeButton = null;
-      }
+      finishPlayback(button);
+      showError(button, "English voice playback failed.");
     };
 
     window.speechSynthesis.speak(utterance);
+  }
+
+  function speakMessage(bubble, button) {
+    const text = getMessageText(bubble);
+
+    if (!text) return;
+
+    stopSpeaking();
+
+    const language =
+      localStorage.getItem("inanda_lang") === "zu"
+        ? "zu"
+        : "en";
+
+    if (language === "zu") {
+      speakZulu(text, button);
+    } else {
+      speakEnglish(text, button);
+    }
   }
 
   function addControls(bubble) {
@@ -132,8 +315,11 @@
 
     const text = getMessageText(bubble);
 
-    if (!text || text === "Eezy AI is thinking..." ||
-        text === "Ngicela ulinde...") {
+    if (
+      !text ||
+      text === "Eezy AI is thinking..." ||
+      text === "Ngicela ulinde..."
+    ) {
       return;
     }
 
@@ -156,7 +342,10 @@
 
     stop.addEventListener("click", stopSpeaking);
 
-    controls.append(listen, stop);
+    const status = document.createElement("span");
+    status.className = "eezy-ai-voice-status";
+
+    controls.append(listen, stop, status);
     bubble.appendChild(controls);
   }
 
@@ -191,26 +380,17 @@
 
     const panel = document.getElementById("eezy-ai-panel");
 
-    if (panel && !panel.dataset.voiceCloseReady) {
-      panel.dataset.voiceCloseReady = "yes";
+    if (!panel || panel.dataset.voiceCloseReady) return;
 
-      const close = panel.querySelector("#eezy-ai-close");
+    panel.dataset.voiceCloseReady = "yes";
 
-      if (close) {
-        close.addEventListener("click", stopSpeaking);
-      }
+    const close = panel.querySelector("#eezy-ai-close");
+    const english = panel.querySelector("#eezy-ai-en");
+    const zulu = panel.querySelector("#eezy-ai-zu");
 
-      const english = panel.querySelector("#eezy-ai-en");
-      const zulu = panel.querySelector("#eezy-ai-zu");
-
-      if (english) {
-        english.addEventListener("click", stopSpeaking);
-      }
-
-      if (zulu) {
-        zulu.addEventListener("click", stopSpeaking);
-      }
-    }
+    if (close) close.addEventListener("click", stopSpeaking);
+    if (english) english.addEventListener("click", stopSpeaking);
+    if (zulu) zulu.addEventListener("click", stopSpeaking);
   }
 
   initialise();
