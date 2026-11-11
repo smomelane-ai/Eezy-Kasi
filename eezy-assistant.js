@@ -505,14 +505,16 @@
     const text = String(message || "").toLowerCase();
 
     return (
-      /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby|affordable|cheap|cheapest|meals?|food|groceries)\b/i.test(text) ||
+      /\b(find|search|look for|looking for|where can i|where is|show me|buy|selling|sell|available|shops?|products?|menu|near me|nearby|affordable|cheap|cheapest|meals?|food|groceries|browse)\b/i.test(text) ||
       /\b(kota|vetkoek|amagwinya|chicken|burger|pizza|chips|hotdog|hot-dog|russian|sandwich|indomie)\b/i.test(text) ||
       /\b(ngifuna|ngitholele|ngibheke|ukuthenga|ngithola|ngingathenga|izitolo|umkhiqizo|imikhiqizo|ukudla)\b/i.test(text)
     );
   }
 
   function understandSearch(message) {
-    let text = String(message || "")
+    const original = String(message || "");
+
+    let text = original
       .toLowerCase()
       .replace(/[?!.,;:()[\]{}"'`]/g, " ")
       .replace(/\s+/g, " ")
@@ -523,7 +525,7 @@
     let area = "";
     let maxPrice = null;
 
-    /* Extract explicit maximum price, for example: under R30 */
+    /* Extract maximum price, for example: under R30 */
     const pricePattern =
       /\b(?:under|below|less than|max(?:imum)?|up to|ngaphansi kuka)\s*r?\s*(\d+(?:\.\d{1,2})?)/i;
 
@@ -534,7 +536,7 @@
       text = text.replace(pricePattern, " ");
     }
 
-    /* Extract an area, for example: in Geneva or near Inanda */
+    /* Extract area, for example: in Geneva or near Inanda */
     const areaPattern =
       /\b(?:in|near|around)\s+([a-z][a-z\s-]*?)(?=\s+(?:under|below|less than|max(?:imum)?|up to)\b|$)/i;
 
@@ -558,7 +560,7 @@
       text = text.replace(zuluAreaMatch[0], " ");
     }
 
-    /* Remove search instructions, but keep useful search terms. */
+    /* Remove search instructions, keeping actual search terms */
     const removePhrases = [
       /\bwhere can i get\b/gi,
       /\bwhere can i buy\b/gi,
@@ -600,6 +602,7 @@
       /\bfind\b/gi,
       /\bsearch\b/gi,
       /\bshow\b/gi,
+      /\bbrowse\b/gi,
       /\bme\b/gi,
       /\bthe\b/gi,
       /\ba\b/gi,
@@ -620,17 +623,10 @@
       text = text.replace(pattern, " ");
     });
 
-    /*
-     * Map broad food words to the food category search term.
-     * Do not delete "food": the backend needs to receive it.
-     */
+    /* Keep food as a search category */
     text = text.replace(/\bmeals?\b/gi, "food");
 
-    /*
-     * Convert known isiZulu product spelling iKota to Kota.
-     * Do not strip the letter i from every word:
-     * that would damage names such as Indomie.
-     */
+    /* Correct known isiZulu spelling iKota */
     text = text.replace(/\bikota\b/gi, "kota");
 
     const query = text
@@ -639,13 +635,17 @@
       .slice(0, 80);
 
     /*
-     * A generic shop request can browse open shops.
-     * Empty query is allowed through to the search endpoint.
+     * Only an explicit request to find shops with no
+     * other search term should browse all open shops.
      */
-    const browseAll =
-      !query && !area && maxPrice === null;
+    const shopOnlyRequest =
+      !query &&
+      !area &&
+      maxPrice === null &&
+      /\b(find|search|show|browse|look for)\b/i.test(original) &&
+      /\b(shop|shops|store|stores)\b/i.test(original);
 
-    if (!query && !area && maxPrice === null && !browseAll) {
+    if (!query && !area && maxPrice === null && !shopOnlyRequest) {
       return null;
     }
 
@@ -653,7 +653,7 @@
       query,
       area,
       max_price_rands: maxPrice,
-      browse_all: browseAll
+      browse_all: shopOnlyRequest
     };
   }
 
@@ -705,11 +705,22 @@
      ===================================================== */
 
   async function searchTownship(filters) {
+    const safeFilters = {
+      query: String(filters?.query || "").trim(),
+      area: String(filters?.area || "").trim(),
+      max_price_rands:
+        filters?.max_price_rands === null ||
+        filters?.max_price_rands === undefined
+          ? null
+          : Number(filters.max_price_rands),
+      browse_all: filters?.browse_all === true
+    };
+
     if (
-      !filters.query &&
-      !filters.area &&
-      filters.max_price_rands === null &&
-      !filters.browse_all
+      !safeFilters.query &&
+      !safeFilters.area &&
+      safeFilters.max_price_rands === null &&
+      !safeFilters.browse_all
     ) {
       throw new Error(
         language === "zu"
@@ -720,7 +731,7 @@
 
     const response = await requestWithSession(
       SEARCH_FN,
-      filters
+      safeFilters
     );
 
     const data = await response.json().catch(() => ({}));
