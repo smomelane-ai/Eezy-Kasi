@@ -522,6 +522,17 @@
 
     if (!isSearchRequest(text)) return null;
 
+    /* Questions about how things work go to the assistant, not to the shop search.
+       A real search still wins when the person clearly asks to find, buy or compare something. */
+    const asksQuestion =
+      /^(how|what|why|when|who|which|can i|can you|could you|do i|do you|does|did|is|are|will|should|explain|tell me|help)\b/.test(text) ||
+      /\b(how to|how do|how does|how can|how it works|how the app|use eezy|using the app|my order|my account|my password|my profile|delivered|delivery|opening hours|what time)\b/.test(text);
+
+    const clearSearch =
+      /\b(find|search|looking for|look for|where can i (?:get|buy|find)|where do i (?:get|buy|find)|near me|nearby|do you (?:have|sell)|who sells|is there|are there|how much (?:is|are|does|do)|ngifuna|ngitholele|ngibheke|ngingathenga)\b/.test(text);
+
+    if (asksQuestion && !clearSearch) return null;
+
     const affordable =
       /\b(affordable|cheap|cheapest|budget|low[- ]cost)\b/i.test(text);
 
@@ -556,11 +567,13 @@
     }
 
     /* Recognise isiZulu location spelling */
-    const zuluAreaMatch = text.match(/\be([a-z][a-z-]{2,})\b/i);
+    /* A place is written with a lower-case e and a capital letter, like eNanda.
+       The text is already lower case, so look in the original message. */
+    const zuluAreaMatch = original.match(/\be([A-Z][A-Za-z-]{2,})\b/);
 
     if (!area && zuluAreaMatch) {
-      area = zuluAreaMatch[1];
-      text = text.replace(zuluAreaMatch[0], " ");
+      area = zuluAreaMatch[1].toLowerCase();
+      text = text.replace(("e" + zuluAreaMatch[1]).toLowerCase(), " ");
     }
 
     /* Remove search instructions */
@@ -611,6 +624,10 @@
       /\ba\b/gi,
       /\ban\b/gi,
       /\bi\b/gi,
+      /\bhow much (?:is|are|does|do)\b/gi,
+      /\b(?:price|cost) of\b/gi,
+      /\bis there\b/gi,
+      /\bare there\b/gi,
       /\bfor\b/gi,
       /\bto\b/gi,
       /\bon\b/gi,
