@@ -1,923 +1,864 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-ZA">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>About Eezy Kasi | Inanda Business Enterprise Services</title>
+  <meta name="description" content="Discover Eezy Kasi, a township-focused digital platform connecting customers, local businesses, drivers and communities. Built in Inanda, KwaZulu-Natal.">
+  <meta name="theme-color" content="#126b43">
+  <link rel="icon" href="https://inandabusiness.co.za/icons/icon-512.png">
 
-<title>About Eezy Kasi | Empowering Townships</title>
+  <meta property="og:title" content="About Eezy Kasi">
+  <meta property="og:description" content="Connecting township communities, businesses and opportunities.">
+  <meta property="og:image" content="https://inandabusiness.co.za/icons/icon-512.png">
+  <meta property="og:type" content="website">
 
-<meta name="description" content="Discover Eezy Kasi: a township-focused digital platform connecting customers, local businesses and drivers through technology and AI.">
-<link rel="canonical" href="https://inandabusiness.co.za/about.html">
-<meta name="robots" content="index, follow">
-
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Eezy Kasi">
-<meta property="og:title" content="About Eezy Kasi">
-<meta property="og:description" content="Empowering townships. Connecting communities. Creating opportunities.">
-<meta property="og:url" content="https://inandabusiness.co.za/about.html">
-<meta property="og:image" content="https://inandabusiness.co.za/icons/icon-512.png">
-<meta property="og:locale" content="en_ZA">
-
-<link rel="icon" type="image/png" href="icons/icon-192.png">
-
-<style>
-:root {
-  --bg:#f3f3f1;
-  --surface:#ffffff;
-  --ink:#111111;
-  --muted:#626262;
-  --line:#deded9;
-  --accent:#111111;
-  --on-accent:#ffffff;
-  --soft:#eaeae5;
-  color-scheme:light;
-}
-
-@media(prefers-color-scheme:dark) {
-  :root {
-    --bg:#121212;
-    --surface:#1c1c1c;
-    --ink:#f1f1ee;
-    --muted:#b4b4ae;
-    --line:#353535;
-    --accent:#f1f1ee;
-    --on-accent:#111111;
-    --soft:#292929;
-    color-scheme:dark;
-  }
-}
-
-* {
-  box-sizing:border-box;
-  scroll-margin-top:90px;
-}
-
-html {
-  scroll-behavior:smooth;
-}
-
-body {
-  margin:0;
-  background:var(--bg);
-  color:var(--ink);
-  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  line-height:1.65;
-}
-
-a {
-  color:inherit;
-}
-
-.container {
-  width:min(1120px,calc(100% - 36px));
-  margin:auto;
-}
-
-header {
-  position:sticky;
-  top:0;
-  z-index:20;
-  background:var(--surface);
-  border-bottom:1px solid var(--line);
-}
-
-.nav {
-  min-height:68px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:18px;
-}
-
-.brand {
-  font-size:21px;
-  font-weight:900;
-  text-decoration:none;
-  letter-spacing:-1px;
-}
-
-.brand span {
-  display:inline-block;
-  margin-left:5px;
-  font-size:10px;
-  letter-spacing:1px;
-  border:1px solid var(--line);
-  border-radius:20px;
-  padding:3px 7px;
-  vertical-align:middle;
-}
-
-.nav-links {
-  display:flex;
-  flex-wrap:wrap;
-  gap:15px;
-  justify-content:flex-end;
-}
-
-.nav-links a {
-  font-size:13px;
-  font-weight:650;
-  text-decoration:none;
-  color:var(--muted);
-}
-
-.nav-links a:hover {
-  color:var(--ink);
-}
-
-.hero {
-  padding:85px 0 75px;
-  background:var(--surface);
-  border-bottom:1px solid var(--line);
-}
-
-.eyebrow {
-  display:inline-block;
-  padding:6px 12px;
-  border:1px solid var(--line);
-  border-radius:30px;
-  font-size:12px;
-  font-weight:800;
-  letter-spacing:1px;
-  text-transform:uppercase;
-}
-
-.hero h1 {
-  max-width:850px;
-  margin:22px 0 16px;
-  font-size:clamp(38px,7vw,70px);
-  line-height:1.04;
-  letter-spacing:-3px;
-}
-
-.hero h1 span {
-  text-decoration:underline;
-  text-decoration-thickness:4px;
-  text-underline-offset:8px;
-}
-
-.hero p {
-  max-width:720px;
-  color:var(--muted);
-  font-size:19px;
-}
-
-.actions {
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  margin-top:27px;
-}
-
-.btn {
-  display:inline-block;
-  padding:12px 19px;
-  border-radius:11px;
-  background:var(--accent);
-  color:var(--on-accent);
-  text-decoration:none;
-  font-weight:750;
-}
-
-.btn.ghost {
-  background:transparent;
-  color:var(--ink);
-  border:1px solid var(--line);
-}
-
-main {
-  padding:35px 0 65px;
-}
-
-.section {
-  padding:45px 0;
-  border-bottom:1px solid var(--line);
-}
-
-.section-heading {
-  max-width:760px;
-  margin-bottom:25px;
-}
-
-.section-number {
-  color:var(--muted);
-  font-size:12px;
-  font-weight:850;
-  letter-spacing:1.5px;
-}
-
-h2 {
-  margin:8px 0 12px;
-  font-size:clamp(27px,4vw,38px);
-  line-height:1.15;
-  letter-spacing:-1px;
-}
-
-h3 {
-  margin:0 0 8px;
-  font-size:19px;
-}
-
-.section-heading p,
-.content p {
-  color:var(--muted);
-  font-size:16px;
-}
-
-.grid {
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:15px;
-}
-
-.card {
-  background:var(--surface);
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:22px;
-}
-
-.card p {
-  margin:0;
-  color:var(--muted);
-}
-
-.icon {
-  width:43px;
-  height:43px;
-  display:grid;
-  place-items:center;
-  border-radius:12px;
-  background:var(--soft);
-  font-size:21px;
-  margin-bottom:15px;
-}
-
-.highlight {
-  background:var(--surface);
-  border:1px solid var(--line);
-  border-radius:18px;
-  padding:28px;
-  margin-top:18px;
-}
-
-.highlight p {
-  color:var(--muted);
-}
-
-.pill {
-  display:inline-block;
-  background:var(--soft);
-  border:1px solid var(--line);
-  padding:5px 10px;
-  border-radius:30px;
-  font-size:12px;
-  font-weight:750;
-  margin:3px;
-}
-
-.notice {
-  border:1px solid var(--line);
-  border-left:5px solid var(--ink);
-  border-radius:12px;
-  padding:18px;
-  background:var(--surface);
-  margin-top:20px;
-}
-
-.notice strong {
-  display:block;
-  margin-bottom:6px;
-}
-
-.steps {
-  counter-reset:step;
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:14px;
-}
-
-.step {
-  counter-increment:step;
-}
-
-.step:before {
-  content:counter(step);
-  display:grid;
-  place-items:center;
-  width:34px;
-  height:34px;
-  border:1px solid var(--line);
-  border-radius:50%;
-  font-weight:850;
-  margin-bottom:13px;
-}
-
-.video-placeholder {
-  min-height:190px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  gap:8px;
-  background:var(--soft);
-  border:1px dashed var(--muted);
-  border-radius:15px;
-  padding:22px;
-}
-
-.play {
-  width:49px;
-  height:49px;
-  display:grid;
-  place-items:center;
-  border-radius:50%;
-  background:var(--accent);
-  color:var(--on-accent);
-  font-size:19px;
-}
-
-.video-placeholder p {
-  margin:0;
-  color:var(--muted);
-  font-size:13px;
-}
-
-footer {
-  background:var(--surface);
-  border-top:1px solid var(--line);
-  padding:35px 0;
-}
-
-.footer-inner {
-  display:flex;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  gap:25px;
-}
-
-.footer-links {
-  display:flex;
-  flex-wrap:wrap;
-  gap:16px;
-}
-
-.footer-links a {
-  color:var(--muted);
-  font-size:14px;
-  text-decoration:none;
-}
-
-.small {
-  color:var(--muted);
-  font-size:13px;
-}
-
-@media(max-width:700px) {
-  .nav {
-    align-items:flex-start;
-    flex-direction:column;
-    padding:13px 0;
-  }
-
-  .nav-links {
-    justify-content:flex-start;
-    gap:12px;
-  }
-
-  .hero {
-    padding:55px 0;
-  }
-
-  .hero h1 {
-    letter-spacing:-2px;
-  }
-
-  .grid,
-  .steps {
-    grid-template-columns:1fr;
-  }
-
-  .section {
-    padding:32px 0;
-  }
-}
-</style>
-
-<script type="application/ld+json">
-{
-  "@context":"https://schema.org",
-  "@type":"AboutPage",
-  "name":"About Eezy Kasi",
-  "url":"https://inandabusiness.co.za/about.html",
-  "about":{
-    "@type":"Organization",
-    "name":"Eezy Kasi",
-    "legalName":"Inanda Business Enterprise Services (PTY) LTD",
-    "url":"https://inandabusiness.co.za/",
-    "email":"info@inandabusiness.co.za",
-    "telephone":"+27817106684",
-    "address":{
-      "@type":"PostalAddress",
-      "streetAddress":"09 Juba Blose Street, Geneva, Bhambayi",
-      "addressLocality":"Inanda",
-      "addressRegion":"KwaZulu-Natal",
-      "postalCode":"4310",
-      "addressCountry":"ZA"
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "name": "About Eezy Kasi",
+    "url": "https://inandabusiness.co.za/about.html",
+    "mainEntity": {
+      "@type": "Organization",
+      "name": "Inanda Business Enterprise Services (PTY) LTD",
+      "url": "https://inandabusiness.co.za/",
+      "logo": "https://inandabusiness.co.za/icons/icon-512.png",
+      "email": "info@inandabusiness.co.za",
+      "telephone": "+27817106684",
+      "founder": {
+        "@type": "Person",
+        "name": "Lufefe Melane"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "5 Ngududu Sukude Street, Geneva, Bhambayi",
+        "addressLocality": "Inanda",
+        "addressRegion": "KwaZulu-Natal",
+        "postalCode": "4310",
+        "addressCountry": "ZA"
+      },
+      "areaServed": "Inanda, KwaZulu-Natal, South Africa"
     }
   }
-}
-</script>
+  </script>
+
+  <style>
+    :root {
+      --green: #126b43;
+      --deep-green: #0b3828;
+      --yellow: #f2c21a;
+      --cream: #fffdf4;
+      --ink: #17251e;
+      --muted: #65736a;
+      --white: #ffffff;
+      --line: #e4e9e2;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    a { color: inherit; }
+
+    .top-strip {
+      height: 7px;
+      background: linear-gradient(90deg, var(--green) 0 50%, var(--yellow) 50% 100%);
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .nav {
+      max-width: 1150px;
+      margin: auto;
+      padding: 12px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      color: var(--deep-green);
+      font-size: 19px;
+    }
+
+    .brand img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      border-radius: 12px;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 17px;
+    }
+
+    nav a {
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--deep-green);
+    }
+
+    nav a:hover { color: var(--green); }
+
+    .hero {
+      background:
+        radial-gradient(circle at 90% 10%, rgba(242,194,26,.22), transparent 32%),
+        linear-gradient(135deg, #0b3828, #126b43);
+      color: white;
+      padding: 88px 22px 82px;
+      border-bottom: 7px solid var(--yellow);
+    }
+
+    .hero-inner {
+      max-width: 1100px;
+      margin: auto;
+      display: grid;
+      grid-template-columns: 1.4fr .6fr;
+      align-items: center;
+      gap: 45px;
+    }
+
+    .hero h1 {
+      font-size: clamp(38px, 6vw, 66px);
+      line-height: 1.08;
+      margin: 15px 0;
+      letter-spacing: -2px;
+    }
+
+    .hero h1 span { color: var(--yellow); }
+
+    .hero p {
+      max-width: 680px;
+      font-size: 18px;
+      color: #e5f0e8;
+    }
+
+    .hero-logo {
+      width: min(100%, 245px);
+      aspect-ratio: 1;
+      object-fit: contain;
+      background: white;
+      padding: 14px;
+      border-radius: 30px;
+      box-shadow: 0 18px 50px #001d153d;
+      justify-self: center;
+    }
+
+    .eyebrow {
+      color: var(--yellow);
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 13px 21px;
+      margin: 12px 8px 0 0;
+      border-radius: 9px;
+      text-decoration: none;
+      font-weight: 800;
+      background: var(--yellow);
+      color: var(--deep-green);
+    }
+
+    .btn.outline {
+      background: transparent;
+      color: white;
+      border: 1px solid #ffffff80;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 65px 22px;
+    }
+
+    .section-heading {
+      max-width: 730px;
+      margin-bottom: 30px;
+    }
+
+    .section-heading h2 {
+      color: var(--deep-green);
+      font-size: clamp(27px, 4vw, 39px);
+      line-height: 1.2;
+      margin: 8px 0 12px;
+    }
+
+    .section-heading p { color: var(--muted); }
+
+    .kicker {
+      color: var(--green);
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 1.7px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 8px 25px #153c2010;
+    }
+
+    .card h3 {
+      color: var(--deep-green);
+      margin: 7px 0;
+    }
+
+    .card p { color: var(--muted); margin-bottom: 0; }
+
+    .symbol {
+      width: 43px;
+      height: 43px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: #fff4c7;
+      color: var(--deep-green);
+      font-size: 21px;
+    }
+
+    .green-section {
+      background: var(--deep-green);
+      color: white;
+    }
+
+    .green-section .section-heading h2 { color: white; }
+    .green-section .section-heading p { color: #d6e7dc; }
+    .green-section .kicker { color: var(--yellow); }
+
+    .yellow-line {
+      width: 65px;
+      height: 5px;
+      background: var(--yellow);
+      border-radius: 5px;
+      margin: 17px 0;
+    }
+
+    .founder {
+      display: grid;
+      grid-template-columns: .75fr 1.25fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .founder-photo {
+      width: 100%;
+      max-width: 350px;
+      aspect-ratio: 4 / 5;
+      object-fit: cover;
+      object-position: center;
+      border-radius: 20px;
+      border: 6px solid var(--yellow);
+      background: #e8eee8;
+    }
+
+    .founder-copy h3 {
+      color: var(--deep-green);
+      font-size: 27px;
+      margin-bottom: 3px;
+    }
+
+    .role {
+      color: var(--green);
+      font-weight: 800;
+      margin-top: 0;
+    }
+
+    .recruitment {
+      border: 1px solid #e9d88a;
+      background: #fff9df;
+    }
+
+    .status {
+      display: inline-block;
+      background: #f7e8a6;
+      color: #594800;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 5px 9px;
+      border-radius: 20px;
+      margin-top: 10px;
+    }
+
+    .future-banner {
+      background: linear-gradient(110deg, #126b43, #0b3828);
+      color: white;
+      padding: 35px;
+      border-radius: 20px;
+      border-left: 7px solid var(--yellow);
+    }
+
+    .future-banner h2 { margin-top: 0; }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .contact-card {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      border: 1px solid var(--line);
+    }
+
+    .contact-card a {
+      color: var(--green);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    footer {
+      background: #08281d;
+      color: white;
+      border-top: 7px solid var(--yellow);
+      padding: 40px 22px;
+    }
+
+    .footer-inner {
+      max-width: 1100px;
+      margin: auto;
+      display: flex;
+      justify-content: space-between;
+      gap: 25px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      font-weight: 800;
+    }
+
+    .footer-brand img {
+      width: 55px;
+      height: 55px;
+      object-fit: contain;
+      background: white;
+      border-radius: 12px;
+      padding: 4px;
+    }
+
+    footer a { color: var(--yellow); }
+
+    .small {
+      font-size: 13px;
+      color: #c8d8ce;
+    }
+
+    @media (max-width: 760px) {
+      .nav { align-items: flex-start; flex-direction: column; }
+      nav { gap: 12px; }
+      .hero { padding: 60px 20px; }
+      .hero-inner, .founder { grid-template-columns: 1fr; }
+      .hero-logo { width: 165px; grid-row: 1; }
+      .grid { grid-template-columns: 1fr; }
+      .contact-grid { grid-template-columns: 1fr; }
+      .container { padding: 48px 20px; }
+      .founder-photo { max-width: 270px; }
+    }
+  </style>
 </head>
 
 <body>
+<div class="top-strip"></div>
 
 <header>
-  <div class="container nav">
-    <a class="brand" href="/">EEZY KASI <span>ABOUT US</span></a>
-    <nav class="nav-links" aria-label="Main navigation">
-      <a href="/">Home</a>
+  <div class="nav">
+    <a class="brand" href="./">
+      <img src="https://inandabusiness.co.za/icons/icon-512.png" alt="Eezy Kasi logo">
+      <span>Eezy Kasi</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#about">About</a>
       <a href="#mission">Mission</a>
-      <a href="#ecosystem">Ecosystem</a>
       <a href="#leadership">Leadership</a>
-      <a href="#media">Media</a>
+      <a href="#ecosystem">Ecosystem</a>
+      <a href="#future">Our Future</a>
       <a href="#contact">Contact</a>
     </nav>
   </div>
 </header>
 
-<div class="hero">
-  <div class="container">
-    <span class="eyebrow">Our story · Our community · Our future</span>
-    <h1>Empowering Townships. <span>Connecting Communities.</span></h1>
-    <p>
-      Eezy Kasi is a township-focused digital platform using technology
-      and artificial intelligence to connect people, local businesses
-      and service providers with opportunities in their communities.
-    </p>
-    <div class="actions">
-      <a class="btn" href="/">Explore Eezy Kasi</a>
-      <a class="btn ghost" href="#about">Discover our story</a>
-    </div>
-  </div>
-</div>
-
-<main class="container">
-
-  <!-- ABOUT -->
-  <section class="section" id="about">
-    <div class="section-heading">
-      <span class="section-number">01 · ABOUT US</span>
-      <h2>Who we are</h2>
-      <p>
-        Built with township communities in mind, Eezy Kasi aims to make
-        everyday services and local opportunities easier to discover
-        and access through one digital platform.
-      </p>
-    </div>
-
-    <div class="content">
-      <p>
-        Eezy Kasi is a South African technology venture developed by
-        Inanda Business Enterprise Services (PTY) LTD. It is rooted
-        in Inanda, KwaZulu-Natal, with a vision to connect township
-        communities through accessible digital services.
-      </p>
-      <p>
-        The platform brings together customers, local shops, businesses
-        and drivers. It is being developed to support local commerce,
-        make services easier to find and help communities participate
-        in the digital economy.
-      </p>
-      <p>
-        We believe that innovation should not be limited to big cities
-        or large businesses. Township entrepreneurs and communities
-        deserve technology that understands their everyday needs.
-      </p>
+<main>
+  <section class="hero">
+    <div class="hero-inner">
+      <div>
+        <div class="eyebrow">Built in Inanda. Inspired by community.</div>
+        <h1>Connecting our communities. <span>Creating opportunities.</span></h1>
+        <p>
+          Eezy Kasi is a township-focused digital platform designed to connect
+          people with local businesses, services, transport and opportunities.
+          We believe local communities deserve accessible digital tools that
+          help them participate in the modern economy.
+        </p>
+        <a class="btn" href="./">Explore Eezy Kasi</a>
+        <a class="btn outline" href="#about">Discover our story</a>
+      </div>
+      <img class="hero-logo"
+        src="https://inandabusiness.co.za/icons/icon-512.png"
+        alt="Eezy Kasi application logo">
     </div>
   </section>
 
-  <!-- MISSION -->
-  <section class="section" id="mission">
+  <section class="container" id="about">
     <div class="section-heading">
-      <span class="section-number">02 · OUR MISSION</span>
-      <h2>Why we exist</h2>
+      <div class="kicker">Who we are</div>
+      <h2>About Eezy Kasi</h2>
+      <div class="yellow-line"></div>
       <p>
-        Our mission is to help people build something that can bear
-        fruit for them and future generations by using technology
-        to open doors to opportunities and resources.
+        Eezy Kasi is an initiative of Inanda Business Enterprise Services
+        (PTY) LTD. It is being developed to make it easier for township
+        residents, entrepreneurs and service providers to find one another
+        and do business.
       </p>
-    </div>
-
-    <div class="highlight">
-      <h3>Our vision</h3>
       <p>
-        To help create connected, opportunity-driven township economies
-        where local businesses can grow, people can access useful
-        services and communities can participate in a changing
-        digital world.
-      </p>
-    </div>
-  </section>
-
-  <!-- LEADERSHIP -->
-  <section class="section" id="leadership">
-    <div class="section-heading">
-      <span class="section-number">03 · LEADERSHIP</span>
-      <h2>The people behind the vision</h2>
-      <p>
-        Eezy Kasi is being developed through entrepreneurial vision,
-        local understanding and a commitment to practical innovation.
-      </p>
-    </div>
-
-    <div class="card">
-      <div class="icon">👤</div>
-      <h3>Lufefe Melane</h3>
-      <p><strong>Founder</strong></p>
-      <p>
-        Founder of Inanda Business Enterprise Services (PTY) LTD
-        and the Eezy Kasi initiative. The vision is to use technology
-        to connect communities, support local enterprise and create
-        opportunities that can benefit future generations.
-      </p>
-    </div>
-
-    <p class="small">
-      Additional leadership profiles and team introductions will
-      be published as the organisation grows.
-    </p>
-  </section>
-
-  <!-- GEOGRAPHIC -->
-  <section class="section" id="geographic">
-    <div class="section-heading">
-      <span class="section-number">04 · GEOGRAPHIC FOCUS</span>
-      <h2>Rooted in Inanda. Growing with communities.</h2>
-      <p>
-        Our development journey starts locally, with a longer-term
-        ambition to reach more communities across South Africa.
+        Our starting point is Inanda, KwaZulu-Natal. Our long-term ambition
+        is to build a platform that can support township communities in
+        other areas as it grows.
       </p>
     </div>
 
     <div class="grid">
-      <div class="card">
-        <div class="icon">📍</div>
-        <h3>Our starting point</h3>
-        <p>
-          Inanda, KwaZulu-Natal, is the community at the heart of
-          our initial development and local focus.
-        </p>
-      </div>
-      <div class="card">
-        <div class="icon">🌍</div>
-        <h3>Our growth ambition</h3>
-        <p>
-          We aim to expand across eThekwini, KwaZulu-Natal and,
-          over time, other communities throughout South Africa.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- DIFFERENCE -->
-  <section class="section" id="difference">
-    <div class="section-heading">
-      <span class="section-number">05 · WHAT MAKES US DIFFERENT</span>
-      <h2>Technology with a township perspective</h2>
-      <p>
-        We are building around the realities, needs and opportunities
-        of the communities we aim to serve.
-      </p>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <div class="icon">🤖</div>
-        <h3>AI-powered assistance</h3>
-        <p>
-          Eezy AI is designed to help users find information,
-          discover local products and navigate the platform.
-        </p>
-      </div>
-      <div class="card">
-        <div class="icon">🏪</div>
-        <h3>Local business focus</h3>
-        <p>
-          We aim to make local shops and businesses more visible
-          and easier for customers to discover.
-        </p>
-      </div>
-      <div class="card">
-        <div class="icon">📱</div>
-        <h3>One connected platform</h3>
-        <p>
-          Our vision brings different community services and
-          participants together in one digital experience.
-        </p>
-      </div>
-      <div class="card">
-        <div class="icon">🗣️</div>
-        <h3>Accessible interaction</h3>
-        <p>
-          English and isiZulu support, including voice features,
-          help make digital interaction more approachable.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ECOSYSTEM -->
-  <section class="section" id="ecosystem">
-    <div class="section-heading">
-      <span class="section-number">06 · THE EEZY KASI ECOSYSTEM</span>
-      <h2>Different people. One connected community.</h2>
-      <p>
-        Eezy Kasi is designed to bring together participants who
-        contribute to a stronger local economy.
-      </p>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <div class="icon">🛍️</div>
-        <h3>Customers</h3>
-        <p>Discover local shops, products and available services.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🚗</div>
-        <h3>Drivers</h3>
-        <p>Connect with transport and delivery opportunities, subject to applicable requirements and approvals.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🏬</div>
+      <article class="card">
+        <div class="symbol">🏪</div>
         <h3>Local businesses</h3>
-        <p>Build a digital presence and connect with potential customers.</p>
+        <p>Help customers discover local shops, products and services.</p>
+      </article>
+      <article class="card">
+        <div class="symbol">🚗</div>
+        <h3>Transport connections</h3>
+        <p>Connect people who need transport with participating drivers and vehicles.</p>
+      </article>
+      <article class="card">
+        <div class="symbol">🤝</div>
+        <h3>Community opportunities</h3>
+        <p>Create room for local participation, collaboration and economic activity.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="green-section" id="mission">
+    <div class="container">
+      <div class="section-heading">
+        <div class="kicker">Our purpose</div>
+        <h2>Our mission and vision</h2>
+        <p>
+          We want technology to work for township communities, not leave
+          them behind.
+        </p>
       </div>
-      <div class="card">
-        <div class="icon">🤝</div>
-        <h3>Suppliers and partners</h3>
-        <p>Explore opportunities to support local enterprise and community development.</p>
+      <div class="grid">
+        <article class="card">
+          <h3>Our mission</h3>
+          <p>
+            To connect township residents, businesses and service providers
+            through accessible digital tools that support convenience,
+            visibility and local economic participation.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Our vision</h3>
+          <p>
+            To contribute to a connected township economy where local
+            businesses can grow, communities can access services and
+            opportunities can be discovered more easily.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Our commitment</h3>
+          <p>
+            To build responsibly, listen to the communities we serve and
+            improve the platform as we learn from real use.
+          </p>
+        </article>
       </div>
     </div>
   </section>
 
-  <!-- VENTURE -->
-  <section class="section" id="venture">
+  <section class="container" id="leadership">
     <div class="section-heading">
-      <span class="section-number">07 · OUR VENTURE</span>
-      <h2>A growing South African technology venture</h2>
+      <div class="kicker">People behind the initiative</div>
+      <h2>Leadership and the people we are building with</h2>
       <p>
-        Eezy Kasi is more than an app. It is a developing business
-        venture with ambitions to contribute to township innovation,
-        digital participation and economic opportunity.
+        Eezy Kasi is being developed with a long-term commitment to
+        responsible leadership, local participation and building a capable team.
       </p>
     </div>
 
-    <div class="content">
-      <p>
-        We are focused on building a useful, sustainable platform,
-        learning from the communities we serve and improving the
-        experience as the venture develops.
-      </p>
-      <p>
-        We welcome conversations with potential investors, development
-        organisations, public institutions, technology partners and
-        businesses that share our vision.
-      </p>
-      <p>
-        Our future plans include continued platform development,
-        expanded services, stronger partnerships and opportunities
-        to support local entrepreneurs.
+    <div class="founder">
+      <img class="founder-photo"
+        src="./founder-lufefe.jpg.jpg"
+        alt="Lufefe Melane, founder of Eezy Kasi"
+        loading="lazy">
+
+      <div class="founder-copy">
+        <div class="kicker">Founder</div>
+        <h3>Lufefe Melane</h3>
+        <p class="role">Founder — Inanda Business Enterprise Services (PTY) LTD</p>
+        <div class="yellow-line"></div>
+        <p>
+          Lufefe Melane is the founder behind the Eezy Kasi initiative.
+          The project is driven by the belief that township communities
+          should have access to useful technology that connects local
+          businesses, customers and service providers.
+        </p>
+        <p>
+          The focus is on building a practical platform rooted in local
+          needs, starting in Inanda and developing its capabilities
+          responsibly over time.
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top:45px">
+      <div class="section-heading">
+        <div class="kicker">Growing our team</div>
+        <h2>Future leadership and recruitment</h2>
+        <p>
+          As the initiative develops, we plan to create opportunities
+          for people with the skills and commitment to help build the platform.
+          The positions below are planned roles, not current appointments.
+        </p>
+      </div>
+
+      <div class="grid">
+        <article class="card recruitment">
+          <h3>Media and Communications Manager</h3>
+          <p>Planned responsibility for media, storytelling, public communication and brand visibility.</p>
+          <span class="status">Planned role — recruitment to be announced</span>
+        </article>
+        <article class="card recruitment">
+          <h3>Administration Manager</h3>
+          <p>Planned responsibility for administration, records, coordination and organisational support.</p>
+          <span class="status">Planned role — recruitment to be announced</span>
+        </article>
+        <article class="card recruitment">
+          <h3>Operations and Community Coordinator</h3>
+          <p>Planned support for local engagement, operational coordination and community relationships.</p>
+          <span class="status">Planned role — recruitment to be announced</span>
+        </article>
+        <article class="card recruitment">
+          <h3>Technology and Product Team</h3>
+          <p>Future technical roles supporting platform development, reliability and digital innovation.</p>
+          <span class="status">Planned role — recruitment to be announced</span>
+        </article>
+        <article class="card recruitment">
+          <h3>Business Development</h3>
+          <p>Future support for business partnerships, growth and relationships with local entrepreneurs.</p>
+          <span class="status">Planned role — recruitment to be announced</span>
+        </article>
+        <article class="card recruitment">
+          <h3>Community Support</h3>
+          <p>Future roles supporting customers, participating businesses and service providers.</p>
+          <span class="status">Planned role — recruitment to be announced</span>
+        </article>
+      </div>
+      <p class="small" style="color:#65736a;margin-top:18px">
+        No vacancies are being advertised through this page at present.
+        Recruitment announcements will be published when positions are formally opened.
       </p>
     </div>
   </section>
 
-  <!-- HOW WE WORK -->
-  <section class="section" id="how-we-work">
-    <div class="section-heading">
-      <span class="section-number">08 · HOW WE WORK</span>
-      <h2>Making everyday connections easier</h2>
-      <p>
-        Our platform is designed to make discovering and connecting
-        with local services more straightforward.
-      </p>
-    </div>
-
-    <div class="steps">
-      <div class="card step">
-        <div class="icon">📲</div>
-        <h3>Join Eezy Kasi</h3>
+  <section class="green-section" id="geographic">
+    <div class="container">
+      <div class="section-heading">
+        <div class="kicker">Where we are growing</div>
+        <h2>Rooted in Inanda. Looking beyond.</h2>
         <p>
-          Create an account and access the services and features
-          available to your account.
+          Our initial focus is Inanda, including communities such as
+          Geneva and Bhambayi. Expansion into other parts of eThekwini,
+          KwaZulu-Natal and beyond is a longer-term ambition.
         </p>
       </div>
-      <div class="card step">
-        <div class="icon">🔎</div>
-        <h3>Discover</h3>
-        <p>
-          Explore local businesses, available products and
-          supported platform services.
-        </p>
-      </div>
-      <div class="card step">
-        <div class="icon">🤝</div>
-        <h3>Connect</h3>
-        <p>
-          Use the platform to connect with participating businesses
-          and service providers.
-        </p>
-      </div>
-    </div>
-
-    <div class="notice">
-      <strong>Important transport regulatory information</strong>
-      Eezy Kasi is pursuing the relevant NPTR approval for its
-      intended e-hailing operations. Approval has not yet been
-      granted. Transport services must only be offered and used
-      in accordance with applicable legal and regulatory requirements.
     </div>
   </section>
 
-  <!-- VALUES -->
-  <section class="section" id="values">
+  <section class="container" id="difference">
     <div class="section-heading">
-      <span class="section-number">09 · OUR VALUES</span>
-      <h2>What guides us</h2>
-      <p>
-        Our values shape how we build, how we work with people
-        and how we approach the communities we serve.
-      </p>
+      <div class="kicker">What makes us different</div>
+      <h2>Designed around township realities</h2>
     </div>
-
     <div class="grid">
-      <div class="card">
-        <h3>Trust and transparency</h3>
-        <p>We believe in honest communication and responsible conduct.</p>
-      </div>
-      <div class="card">
-        <h3>Innovation</h3>
-        <p>We use technology to explore practical solutions to real needs.</p>
-      </div>
-      <div class="card">
-        <h3>Inclusion</h3>
-        <p>We want more people and businesses to participate in the digital economy.</p>
-      </div>
-      <div class="card">
-        <h3>Accountability</h3>
-        <p>We aim to respect our responsibilities, users and applicable laws.</p>
-      </div>
-      <div class="card">
-        <h3>Community empowerment</h3>
-        <p>We believe local people and enterprises should have opportunities to grow.</p>
-      </div>
-      <div class="card">
-        <h3>Long-term impact</h3>
-        <p>We want to build something meaningful for present and future generations.</p>
-      </div>
+      <article class="card">
+        <div class="symbol">📍</div>
+        <h3>Local-first thinking</h3>
+        <p>We focus on local areas, businesses and the services people need in their communities.</p>
+      </article>
+      <article class="card">
+        <div class="symbol">📱</div>
+        <h3>Digital accessibility</h3>
+        <p>We aim to make useful digital services easier to discover and use.</p>
+      </article>
+      <article class="card">
+        <div class="symbol">🌱</div>
+        <h3>Growth with purpose</h3>
+        <p>We want local participation and sustainable development to remain central as we grow.</p>
+      </article>
     </div>
   </section>
 
-  <!-- MEDIA -->
-  <section class="section" id="media">
+  <section class="container" id="ecosystem">
     <div class="section-heading">
-      <span class="section-number">10 · MEDIA</span>
-      <h2>See the Eezy Kasi journey</h2>
+      <div class="kicker">The Eezy Kasi ecosystem</div>
+      <h2>One platform. Multiple connections.</h2>
       <p>
-        This section will feature company videos, product demonstrations,
-        interviews, announcements and other media as they become available.
+        Eezy Kasi is designed to bring different participants into one
+        connected digital environment.
       </p>
     </div>
-
     <div class="grid">
-      <div class="video-placeholder">
-        <div class="play">▶</div>
-        <h3>Meet Eezy Kasi</h3>
-        <p>Company introduction video coming soon.</p>
-      </div>
-      <div class="video-placeholder">
-        <div class="play">▶</div>
-        <h3>Discover the platform</h3>
-        <p>App demonstration video coming soon.</p>
-      </div>
-      <div class="video-placeholder">
-        <div class="play">▶</div>
-        <h3>Meet Eezy AI</h3>
-        <p>AI assistant demonstration coming soon.</p>
-      </div>
-      <div class="video-placeholder">
-        <div class="play">▶</div>
-        <h3>Community voices</h3>
-        <p>Interviews and community stories coming soon.</p>
-      </div>
+      <article class="card">
+        <h3>Customers</h3>
+        <p>Discover participating shops, products and available services.</p>
+      </article>
+      <article class="card">
+        <h3>Shop owners</h3>
+        <p>Present local businesses and manage products and customer orders.</p>
+      </article>
+      <article class="card">
+        <h3>Drivers</h3>
+        <p>Connect with transport requests and participating customers.</p>
+      </article>
+      <article class="card">
+        <h3>Local services</h3>
+        <p>Support the discovery of services and businesses within the community.</p>
+      </article>
+      <article class="card">
+        <h3>Group purchasing</h3>
+        <p>Explore opportunities for communities and businesses to coordinate supplier orders.</p>
+      </article>
+      <article class="card">
+        <h3>Eezy AI</h3>
+        <p>Develop intelligent assistance for search, guidance and easier platform use.</p>
+      </article>
     </div>
   </section>
 
-  <!-- STORIES -->
-  <section class="section" id="stories">
+  <section class="container" id="venture">
     <div class="section-heading">
-      <span class="section-number">11 · STORIES</span>
-      <h2>Our community. Our stories.</h2>
+      <div class="kicker">Our venture</div>
+      <h2>Building a township digital enterprise</h2>
       <p>
-        Every business, driver, customer and entrepreneur has a story.
-        We want this space to celebrate the people and ideas that
-        make our communities special.
+        Eezy Kasi is more than a single service. It is an evolving digital
+        venture exploring how technology can support local commerce,
+        transport, business visibility and community connections.
       </p>
     </div>
-
-    <div class="highlight">
-      <h3>Stories coming soon</h3>
+    <div class="card">
+      <h3>Our approach</h3>
       <p>
-        As Eezy Kasi grows, this section will share real experiences,
-        business journeys, community achievements and lessons from
-        the people who take part in our journey.
-      </p>
-      <p>
-        We will publish stories with appropriate permission and respect
-        for people's privacy.
+        We are developing the platform in stages, learning from its
+        implementation and improving the experience as services and
+        partnerships mature. We aim to grow on the basis of trust,
+        practical value and responsible operations.
       </p>
     </div>
   </section>
 
-  <!-- CONTACT -->
-  <section class="section" id="contact">
+  <section class="container" id="how">
     <div class="section-heading">
-      <span class="section-number">12 · CONNECT WITH US</span>
-      <h2>Be part of the journey</h2>
-      <p>
-        Whether you are a customer, entrepreneur, driver, potential
-        partner or supporter, we welcome your interest in Eezy Kasi.
-      </p>
+      <div class="kicker">How we work</div>
+      <h2>Build. Learn. Improve. Grow.</h2>
     </div>
+    <div class="grid">
+      <article class="card">
+        <h3>1. Listen</h3>
+        <p>Understand the needs of residents, local businesses and service providers.</p>
+      </article>
+      <article class="card">
+        <h3>2. Develop</h3>
+        <p>Build practical tools and improve them through careful testing and feedback.</p>
+      </article>
+      <article class="card">
+        <h3>3. Grow responsibly</h3>
+        <p>Expand services and geographic reach as capacity, partnerships and readiness allow.</p>
+      </article>
+    </div>
+  </section>
 
-    <div class="highlight">
-      <h3>Let's build opportunities together.</h3>
-      <p>
-        Contact us to learn more about the platform, discuss
-        partnerships or explore ways to work together.
-      </p>
-      <div class="actions">
-        <a class="btn" href="/">Explore Eezy Kasi</a>
-        <a class="btn ghost" href="mailto:info@inandabusiness.co.za">Email our team</a>
+  <section class="green-section" id="values">
+    <div class="container">
+      <div class="section-heading">
+        <div class="kicker">What guides us</div>
+        <h2>Our values</h2>
+      </div>
+      <div class="grid">
+        <article class="card"><h3>Community</h3><p>Local people and their needs matter.</p></article>
+        <article class="card"><h3>Integrity</h3><p>We value honesty, accountability and transparency.</p></article>
+        <article class="card"><h3>Innovation</h3><p>We use technology to solve practical problems.</p></article>
+        <article class="card"><h3>Opportunity</h3><p>We believe local talent and enterprise deserve room to grow.</p></article>
+        <article class="card"><h3>Inclusion</h3><p>We aim to make participation more accessible.</p></article>
+        <article class="card"><h3>Responsibility</h3><p>We take trust, safety and responsible development seriously.</p></article>
       </div>
     </div>
-
-    <div class="content">
-      <p><strong>Company:</strong> Inanda Business Enterprise Services (PTY) LTD</p>
-      <p><strong>Founder:</strong> Lufefe Melane</p>
-      <p><strong>Email:</strong> <a href="mailto:info@inandabusiness.co.za">info@inandabusiness.co.za</a></p>
-      <p><strong>Phone:</strong> <a href="tel:+27817106684">081 710 6684</a></p>
-      <p><strong>Address:</strong> 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310</p>
-    </div>
   </section>
 
-  <section class="section" id="privacy">
+  <section class="container" id="media">
     <div class="section-heading">
-      <span class="section-number">YOUR PRIVACY</span>
-      <h2>Respecting your information</h2>
+      <div class="kicker">Media and updates</div>
+      <h2>Our story as it develops</h2>
       <p>
-        We recognise the importance of protecting personal information.
-        Eezy Kasi is committed to handling personal information
-        responsibly and in accordance with applicable data protection
-        requirements, including POPIA.
+        This section will be used for company announcements, media
+        resources, project milestones and approved photographs as
+        the initiative grows.
       </p>
+    </div>
+    <div class="card">
+      <h3>Media enquiries</h3>
+      <p>For media and communications enquiries, contact our team using the details below.</p>
+      <a href="mailto:info@inandabusiness.co.za">info@inandabusiness.co.za</a>
+    </div>
+  </section>
+
+  <section class="container" id="stories">
+    <div class="section-heading">
+      <div class="kicker">Community stories</div>
+      <h2>Local stories. Local progress.</h2>
       <p>
-        Please review the privacy policy and terms made available
-        through the app before using its services.
+        As Eezy Kasi develops, we aim to share stories about participating
+        businesses, community experiences, partnerships and milestones.
+        Stories will be published as they become available.
       </p>
     </div>
   </section>
 
+  <section class="container" id="future">
+    <div class="future-banner">
+      <div class="eyebrow">Looking ahead</div>
+      <h2>Our future is built together.</h2>
+      <p>
+        We want Eezy Kasi to become a useful digital connection point
+        for township communities — supporting local businesses,
+        connecting services and creating pathways to opportunity.
+        We know that meaningful growth takes time, trust and teamwork.
+      </p>
+      <a class="btn" href="./">Visit Eezy Kasi</a>
+    </div>
+  </section>
+
+  <section class="container" id="contact">
+    <div class="section-heading">
+      <div class="kicker">Get in touch</div>
+      <h2>Contact our company</h2>
+      <p>
+        For general enquiries, business engagement and information
+        about Eezy Kasi, contact Inanda Business Enterprise Services.
+      </p>
+    </div>
+
+    <div class="contact-grid">
+      <div class="contact-card">
+        <h3>Company details</h3>
+        <p><strong>Inanda Business Enterprise Services (PTY) LTD</strong></p>
+        <p>Registration number: 2026/817908/07</p>
+        <p>5 Ngududu Sukude Street,<br>
+          Geneva, Bhambayi,<br>
+          Inanda, KwaZulu-Natal, 4310<br>
+          South Africa</p>
+      </div>
+      <div class="contact-card">
+        <h3>Contact information</h3>
+        <p>Email: <a href="mailto:info@inandabusiness.co.za">info@inandabusiness.co.za</a></p>
+        <p>Telephone: <a href="tel:+27817106684">081 710 6684</a></p>
+        <p>Website: <a href="https://inandabusiness.co.za/">inandabusiness.co.za</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container" id="privacy">
+    <div class="section-heading">
+      <div class="kicker">Trust and responsibility</div>
+      <h2>Privacy and responsible development</h2>
+      <p>
+        We recognise the importance of protecting personal information
+        and handling user data responsibly. Our platform development
+        considers security, access controls and applicable South African
+        privacy requirements, including the Protection of Personal
+        Information Act (POPIA).
+      </p>
+      <p>
+        Users should consult the applicable privacy information and
+        platform terms when using Eezy Kasi services.
+      </p>
+    </div>
+  </section>
+
+  <section class="container" id="regulatory">
+    <div class="card">
+      <h3>Regulatory transparency</h3>
+      <p>
+        Where services require regulatory permissions or approvals,
+        these must be obtained before the relevant regulated service
+        is represented as authorised. Any transport-related regulatory
+        application or approval must be confirmed separately.
+      </p>
+    </div>
+  </section>
 </main>
 
 <footer>
-  <div class="container footer-inner">
+  <div class="footer-inner">
     <div>
-      <a class="brand" href="/">EEZY KASI</a>
-      <p class="small">Empowering Townships. Connecting Communities. Creating Opportunities.</p>
-      <p class="small">
-        &copy; <span id="year"></span> Inanda Business Enterprise Services (PTY) LTD.
-        All rights reserved.
-      </p>
+      <div class="footer-brand">
+        <img src="https://inandabusiness.co.za/icons/icon-512.png" alt="Eezy Kasi logo">
+        <span>Eezy Kasi</span>
+      </div>
+      <p class="small">Connecting communities. Creating opportunities.</p>
+      <p class="small">An initiative of Inanda Business Enterprise Services (PTY) LTD.</p>
     </div>
-
-    <nav class="footer-links" aria-label="Footer navigation">
-      <a href="/">Home</a>
-      <a href="#about">About us</a>
-      <a href="#mission">Our mission</a>
-      <a href="#contact">Contact</a>
-      <a href="mailto:info@inandabusiness.co.za">Email</a>
-    </nav>
+    <div>
+      <p><a href="./">Open Eezy Kasi</a></p>
+      <p><a href="mailto:info@inandabusiness.co.za">Contact us</a></p>
+      <p class="small">© <span id="year"></span> Inanda Business Enterprise Services (PTY) LTD.</p>
+    </div>
   </div>
 </footer>
 
 <script>
-document.getElementById("year").textContent =
-  new Date().getFullYear();
+  document.getElementById("year").textContent = new Date().getFullYear();
 </script>
-
 </body>
 </html>
