@@ -388,6 +388,7 @@ async function loadAdmin(){
   try{ ST.members=await rpc("admin_members",{}); ST.membersErr=""; }catch(e){ ST.members=[]; ST.membersErr=e.message; }
   try{ ST.reports=await rpc("admin_reports",{}); }catch(e){ ST.reports=[]; }
   try{ ST.dd=(await rpc("admin_driver_docs",{}))||{}; await signDocs(ST.dd); }catch(e){ ST.dd={}; }
+  await loadPanic();
   try{ ST.rAlerts=(await rpc("admin_ratings_alerts",{}))||{low:[],recent:[]}; }catch(e){ ST.rAlerts={low:[],recent:[]}; }
   try{ const cs=await sb("/rest/v1/platform_settings?select=customers_need_approval&id=eq.1"); ST.custAppr=!!(cs&&cs[0]&&cs[0].customers_need_approval); }catch(e){}
   ST.pendOwn=[];
@@ -453,11 +454,11 @@ async function openChat(id){
 // Number plates are not in the drivers table any more for customers: the database view driver_plates only
 // returns a plate to the driver themself, an admin, or a customer who has chosen that driver.
 async function addPlates(items,idOf,objOf){ try{ const ids=[...new Set(items.map(idOf).filter(Boolean))]; if(!ids.length) return; const p=await sb(`/rest/v1/driver_plates?select=driver_id,plate_number&driver_id=in.(${ids.join(",")})`); const m={}; p.forEach(x=>{m[x.driver_id]=x.plate_number;}); items.forEach(it=>{ const o=objOf(it), id=idOf(it); if(o&&id&&m[id]) o.plate_number=m[id]; }); }catch(e){} }
-async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${sess.user.id}`); ST.me=m[0]||null; if(ST.me){ await addPlates([ST.me],x=>x.id,x=>x); try{ ST.docs=await rpc("my_driver_docs",{}); }catch(e){ ST.docs=null; } } }
+async function loadMe(){ const m=await sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_model,vehicle_colour,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${sess.user.id}`); ST.me=m[0]||null; if(ST.me){ await addPlates([ST.me],x=>x.id,x=>x); try{ ST.docs=await rpc("my_driver_docs",{}); }catch(e){ ST.docs=null; } } }
 async function loadTrips(){
-  ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km,vehicle_class&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
+  ST.trips=await sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,budget_cents,price_cents,ride_type,distance_km,vehicle_class,passenger_name&customer_id=eq.${sess.user.id}&order=id.desc&limit=10`);
   const ids=ST.trips.map(t=>t.id);
-  ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_colour,vehicle_type,photo_path,car_photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
+  ST.offers=ids.length?await sb(`/rest/v1/transport_offers?select=request_id,driver_id,price_cents,status,drivers(full_name,vehicle_make,vehicle_model,vehicle_colour,vehicle_type,photo_path,car_photo_path)&request_id=in.(${ids.join(",")})&order=price_cents`):[];
   await signPhotos(ST.offers.map(o=>o.drivers).filter(Boolean));
   await addPlates(ST.offers,o=>o.driver_id,o=>o.drivers);   // only returns a plate once this customer has chosen that driver
   ST.pins={}; ST.favs=[];
@@ -465,7 +466,7 @@ async function loadTrips(){
   try{ ((await rpc("my_car_pins",{}))||[]).forEach(x=>{ST.pins[x.request_id]=x.pin;}); }catch(e){}
   try{ const done=ST.trips.filter(t=>t.status==="completed").map(t=>t.id), dr=Array.from(new Set(ST.offers.map(o=>o.driver_id).filter(Boolean))), key=done.join(",")+"|"+dr.join(","); if(key!==ST.rKey){ ST.rKey=key; ST.rated=done.length?((await rpc("rated_ids",{p_ids:done}))||[]):[]; ST.rtg=dr.length?((await rpc("rating_of",{p_users:dr}))||{}):{}; } ST.offers.forEach(o=>{ if(o.drivers) o.drivers.rating=(ST.rtg||{})[o.driver_id]||null; }); }catch(e){}
   try{ const f=await sb("/rest/v1/favourite_drivers?select=driver_id&order=created_at");
-    if(f.length){ const d=await sb("/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,vehicle_type&id=in.("+f.map(x=>x.driver_id).join(",")+")"); await addPlates(d,x=>x.id,x=>x); ST.favs=d; } }catch(e){}
+    if(f.length){ const d=await sb("/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_model,vehicle_colour,vehicle_type&id=in.("+f.map(x=>x.driver_id).join(",")+")"); await addPlates(d,x=>x.id,x=>x); ST.favs=d; } }catch(e){}
 }
 async function signPhotos(list){
   const paths=[]; list.forEach(d=>{ if(d.photo_path) paths.push(d.photo_path); if(d.car_photo_path) paths.push(d.car_photo_path); });
@@ -480,11 +481,11 @@ async function signPhotos(list){
 }
 async function loadDriver(){
   const id=sess.user.id;
-  const r=await Promise.all([sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_colour,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${id}`),
+  const r=await Promise.all([sb(`/rest/v1/drivers?select=id,full_name,vehicle_make,vehicle_model,vehicle_colour,vehicle_type,photo_path,car_photo_path,status,created_at&id=eq.${id}`),
     sb(`/rest/v1/driver_routes?select=id,from_place,to_place,price_cents&driver_id=eq.${id}&order=from_place`),
     sb(`/rest/v1/transport_requests?select=id,from_place,to_place,goods_type,description,when_text,budget_cents,ride_type,distance_km,price_cents,pickup_lat,pickup_lng&status=eq.open&order=id`),
     sb(`/rest/v1/transport_offers?select=request_id,price_cents,status&driver_id=eq.${id}`),
-    sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,description,when_text,price_cents,customer_id,ride_type,distance_km,pickup_lat,pickup_lng,drop_lat,drop_lng&chosen_driver_id=eq.${id}&status=in.(accepted,started)&order=id`),
+    sb(`/rest/v1/transport_requests?select=id,status,from_place,to_place,goods_type,description,when_text,price_cents,customer_id,ride_type,distance_km,pickup_lat,pickup_lng,drop_lat,drop_lng,passenger_name&chosen_driver_id=eq.${id}&status=in.(accepted,started)&order=id`),
     sb(`/rest/v1/driver_amount_due?select=*&driver_id=eq.${id}`)]);
   ST.me=r[0][0]||null; if(ST.me) await addPlates([ST.me],x=>x.id,x=>x); ST.myRoutes=r[1]; ST.openReqs=r[2].filter(x=>x.ride_type!=="car"); ST.rides=[]; ST.myOffers=r[3]; ST.jobs=r[4]; ST.dDue=r[5][0]||{}; ST.contacts={};
   if(ST.jobs.length){ const c=await sb(`/rest/v1/transport_contacts?select=request_id,pickup_text&request_id=in.(${ST.jobs.map(j=>j.id).join(",")})`); c.forEach(x=>{ST.contacts[x.request_id]=x;}); }
@@ -524,7 +525,7 @@ async function shrink(file,strict){
   return file;
 }
 async function upload(bucket,file,name){
-  const what={photo:"Your face photo",car:"The photo of your car",id:"The photo of your ID",licence:"The photo of your licence",disc:"The photo of the licence disc",prdp:"The photo of your PrDP",insurance:"The photo of your insurance"}[name]||"The picture";
+  const what={photo:"Your face photo",car:"The photo of your car",id:"The photo of your ID",licence:"The photo of your licence",disc:"The photo of the licence disc",prdp:"The photo of your PrDP",insurance:"The photo of your insurance",police_clearance:"The photo of your police report"}[name]||"The picture";
   let body; try{ body=await shrink(file,true); }catch(e){ throw new Error(what+": "+e.message); }
   const path=sess.user.id+"/"+name;
   const r=await fetch(`${SB_URL}/storage/v1/object/${bucket}/${path}`,{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+sess.access_token,"x-upsert":"true","Content-Type":body.type||"image/jpeg"},body});
@@ -583,32 +584,53 @@ const RTAGS_CUST=[["respectful","Respectful"],["on_time","Ready on time"],["poli
 const ratingBox=(id,kind)=>{ const r=(ST.rate&&+ST.rate.id===+id)?ST.rate:{id,stars:0,tags:[]}, tags=kind==="driver"?RTAGS_DRIVER:RTAGS_CUST;
   return `<div class="note"><b>${kind==="driver"?"How was your driver?":"How was your customer?"}</b><div class="seg" role="tablist" style="margin:8px 0">${[1,2,3,4,5].map(n=>`<button role="tab" aria-checked="${r.stars>=n}" data-a="rstar" data-id="${id}" data-v="${n}">★</button>`).join("")}</div><div>${tags.map(([k,l])=>`<button class="sm" data-a="rtag" data-id="${id}" data-v="${k}">${r.tags.includes(k)?"✓ ":""}${l}</button>`).join(" ")}</div><button class="btn" style="margin-top:8px" data-a="ratesend" data-id="${id}" ${r.stars?"":"disabled"}>Send rating</button></div>`; };
 const shareTripLink=(t,c)=>{ const d=c.drivers||{};
-  const txt="I am taking an Eezy Kasi ride.\nDriver: "+(d.full_name||"-")+"\nCar: "+([d.vehicle_colour,d.vehicle_make].filter(Boolean).join(" ")||"-")+(d.plate_number?", plate "+d.plate_number:"")+"\nFrom: "+t.from_place+"\nTo: "+t.to_place+"\nTime: "+new Date().toLocaleTimeString("en-ZA",{hour:"2-digit",minute:"2-digit"})+"\nIf you do not hear from me, please call me.";
+  const txt="I am taking an Eezy Kasi ride.\nDriver: "+(d.full_name||"-")+"\nCar: "+([d.vehicle_colour,d.vehicle_make,d.vehicle_model].filter(Boolean).join(" ")||"-")+(d.plate_number?", plate "+d.plate_number:"")+"\nFrom: "+t.from_place+"\nTo: "+t.to_place+"\nTime: "+new Date().toLocaleTimeString("en-ZA",{hour:"2-digit",minute:"2-digit"})+"\nIf you do not hear from me, please call me.";
   return `<a class="btn ghost" style="display:block;text-align:center;margin-top:8px" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Share my trip on WhatsApp</a>`; };
 const toRateCards=()=>{ const my=ST.myRtg;
   const line=my?`<div class="note">Your rating: ${my.avg?"★ "+esc(String(my.avg))+" ("+(+my.n)+" ratings)":"not enough ratings yet"}</div>`:"";
   return line+(ST.toRate||[]).map(x=>`<div class="card"><b>Rate your last customer</b><br><small>${esc(x.from_place)} → ${esc(x.to_place)}</small>${ratingBox(x.id,"customer")}</div>`).join(""); };
+const PANIC_NOTE="Send a panic alert? Press OK only if you are in danger. We will alert the Eezy Kasi admin and our security partner with your trip and your location.";
+const panicBtn=t=>(t&&t.ride_type==="car"&&(t.status==="accepted"||t.status==="started"))?`<button class="btn" style="background:#c62828;color:#fff;margin-top:8px" data-a="panic" data-id="${t.id}">🚨 Panic: I need help</button>`:"";
 const DOCS=[["licence","Driver’s licence"],["disc","Vehicle licence disc"],["prdp","Professional driving permit (PrDP)"],["insurance","Proof of insurance"]];
 const docsCard=()=>{ const dd=ST.docs; if(!dd||!dd.need) return "";
   const st=dd.state, today=new Date().toISOString().slice(0,10);
   const banner=st==="ok"?'<div class="banner ok"><strong>Documents complete</strong>Thank you. Keep them up to date.</div>':st==="expired"?'<div class="banner bad"><strong>A document has expired</strong>Upload the new one below.</div>':'<div class="banner bad"><strong>Documents needed</strong>Upload a clear photo of each document and type its expiry date. You cannot be approved until they are complete.</div>';
   const rows=DOCS.filter(([k])=>dd.need.includes(k)).map(([k,l])=>{ const x=(dd.docs||{})[k]||{}, exp=x.expiry&&x.expiry<today;
     return `<div class="card" style="margin:8px 0"><b>${l}</b><br><small>${x.has?(exp?'<span class="tag bad">Expired</span>':'<span class="tag ok">Saved</span>')+(x.expiry?" expires "+esc(x.expiry):""):'<span class="tag bad">Missing</span>'}</small><label for="f_doc_${k}">Photo of the document</label><input id="f_doc_${k}" type="file" accept="image/*"><label for="f_docx_${k}">Expiry date on the document</label><input id="f_docx_${k}" type="date"><button class="btn" data-a="docsave" data-k="${k}">${x.has?"Replace":"Save"}</button></div>`; }).join("");
-  return `<div class="card"><h2>Your documents</h2><p style="margin:4px 0 8px"><small>Customers never see these. Only you and the Eezy Kasi admin can.${dd.need.includes("prdp")?" Trucks must also have a professional driving permit and proof of insurance.":""}</small></p>${banner}${rows}</div>`; };
-async function signDocs(dd){ const ids=(ST.pend||[]).map(d=>d.id), kinds=["licence","disc","prdp","insurance"], paths=[];
+  const dx=dd.docs||{}, ex=[];
+  if(dd.need.includes("vehicle")){ const x=dx.vehicle||{};
+    ex.push(`<div class="card" style="margin:8px 0"><b>Vehicle details</b><br><small>${x.has?'<span class="tag ok">Saved</span> '+esc(x.model||"")+" · first registered "+esc(x.first_reg||""):'<span class="tag bad">Missing</span>'}</small>${fld("vmodel","Vehicle model (for example Polo or Corolla)","")}<label for="f_vreg">Date the vehicle was first registered (it is on the licence disc or the registration papers)</label><input id="f_vreg" type="date"><button class="btn" data-a="vehsave">${x.has?"Replace":"Save"}</button></div>`); }
+  if(dd.need.includes("criminal")){ const x=dx.criminal||{};
+    ex.push(`<div class="card" style="margin:8px 0"><b>Police criminal record report</b><br><small>${x.has?'<span class="tag ok">Saved</span> issued '+esc(x.issued||""):'<span class="tag bad">Missing</span>'}<br>A police clearance certificate from SAPS, issued in the last 12 months. Only the Eezy Kasi admin can see it.</small><label for="f_doc_police_clearance">Photo of the report</label><input id="f_doc_police_clearance" type="file" accept="image/*"><label for="f_docx_police_clearance">Date the report was issued</label><input id="f_docx_police_clearance" type="date"><button class="btn" data-a="crimsave">${x.has?"Replace":"Save"}</button></div>`); }
+  if(dd.need.includes("declaration")){ const x=dx.declaration||{};
+    ex.push(`<div class="card" style="margin:8px 0"><b>Signed declaration</b><br><small>${x.has?'<span class="tag ok">Signed</span> '+esc(String(x.signed_at||"").slice(0,10)):'<span class="tag bad">Not signed</span>'}</small><p style="margin:6px 0"><small>I declare that no criminal investigation is pending against me, in South Africa or anywhere else, that could lead to a conviction making me unfit to carry passengers. I understand that if this is not true, Eezy Kasi may remove me from the app.</small></p>${fld("decname","Type your full name exactly as on your profile, to sign","")}<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input id="f_decok" type="checkbox" style="width:auto"> I agree and I sign this declaration</label><button class="btn" data-a="declsave">${x.has?"Sign again":"Sign"}</button></div>`); }
+  return `<div class="card"><h2>Your documents</h2><p style="margin:4px 0 8px"><small>Customers never see these. Only you and the Eezy Kasi admin can.${dd.need.includes("vehicle")?" Car drivers also need the professional driving permit (PrDP), a police criminal record report, the vehicle details and a signed declaration.":dd.need.includes("prdp")?" Trucks must also have a professional driving permit and proof of insurance.":""}</small></p>${banner}${rows}${ex.join("")}</div>`; };
+async function signDocs(dd){ const ids=(ST.pend||[]).map(d=>d.id), kinds=["licence","disc","prdp","insurance","criminal"], paths=[];
   ids.forEach(id=>{ const x=dd[id]; if(x) kinds.forEach(k=>{ if(x[k+"_path"]) paths.push(x[k+"_path"]); }); });
   if(!paths.length) return;
   const r=await sb("/storage/v1/object/sign/driver-docs",{method:"POST",body:JSON.stringify({expiresIn:3600,paths})}), m={};
   (r||[]).forEach(y=>{ if(y.signedURL) m[y.path]=SB_URL+"/storage/v1"+y.signedURL; });
   ids.forEach(id=>{ const x=dd[id]; if(x) kinds.forEach(k=>{ x[k+"_url"]=m[x[k+"_path"]]||""; }); }); }
 const docsAdminBlock=id=>{ const x=(ST.dd||{})[id]; if(!x) return '<div class="note">No documents uploaded yet. The driver must open Your documents on their screen.</div>';
-  const need=x.vehicle_type==="truck"?["licence","disc","prdp","insurance"]:["licence","disc"];
-  return `<div class="note"><b>Documents: ${x.state==="ok"?"complete":x.state==="expired"?"a document has expired":"incomplete"}</b>${need.map(k=>{ const lab=(DOCS.find(d=>d[0]===k)||[k,k])[1]; return `<br><small>${lab}: ${x[k+"_path"]?(x[k+"_url"]?`<a href="${esc(x[k+"_url"])}" target="_blank" rel="noopener">view photo</a>`:"uploaded"):"missing"}${x[k+"_expiry"]?" · expires "+esc(x[k+"_expiry"]):""}</small>`; }).join("")}<br><small>Check that the licence matches the ID photo and the plate matches the disc before you approve.</small></div>`; };
+  const need=x.need||(x.vehicle_type==="truck"?["licence","disc","prdp","insurance"]:["licence","disc"]);
+  const view=k=>x[k+"_path"]?(x[k+"_url"]?`<a href="${esc(x[k+"_url"])}" target="_blank" rel="noopener">view photo</a>`:"uploaded"):"missing";
+  const line=k=>{ if(k==="vehicle") return `<br><small>Vehicle: ${x.vehicle_model&&x.first_reg?esc(x.vehicle_model)+" · first registered "+esc(x.first_reg):"missing"}</small>`;
+    if(k==="criminal") return `<br><small>Police criminal record report: ${view("criminal")}${x.criminal_issued?" · issued "+esc(x.criminal_issued):""}</small>`;
+    if(k==="declaration") return `<br><small>Signed declaration: ${x.declaration_signed_at?"signed by "+esc(x.declaration_name||"")+" on "+esc(String(x.declaration_signed_at).slice(0,10)):"not signed"}</small>`;
+    const lab=(DOCS.find(d=>d[0]===k)||[k,k])[1]; return `<br><small>${lab}: ${view(k)}${x[k+"_expiry"]?" · expires "+esc(x[k+"_expiry"]):""}</small>`; };
+  return `<div class="note"><b>Documents: ${x.state==="ok"?"complete":x.state==="expired"?"a document has expired":"incomplete"}</b>${need.map(line).join("")}<br><small>Check that the licence matches the ID photo and the plate matches the disc before you approve.</small></div>`; };
+async function loadPanic(){ try{ ST.panic=await rpc("admin_panic",{}); const pv=(ST.panic||{}).provider||{}, f=ST.form;
+    if(f.pvname===undefined) f.pvname=pv.name||""; if(f.pvphone===undefined) f.pvphone=pv.phone||""; if(f.pvemail===undefined) f.pvemail=pv.email||""; if(f.pven===undefined) f.pven=pv.enabled?"on":"off"; }catch(e){ ST.panic=null; } }
+const panicAdmin=()=>{ const P=ST.panic; if(!P) return ""; const al=P.alerts||[], day=864e5, fmt=t=>t?new Date(t).toLocaleString("en-ZA",{dateStyle:"medium",timeStyle:"short"}):"never";
+  const live=al.filter(a=>!a.is_test&&!a.resolved_at).map(a=>`<div class="card" style="border:2px solid #c62828"><div class="row"><b style="color:#c62828">🚨 PANIC from the ${a.role==="driver"?"driver":"passenger"}</b><small>${esc(fmt(a.created_at))}</small></div><small>Trip #${+a.request_id||"-"}: ${esc(a.from_place||"-")} → ${esc(a.to_place||"-")}<br>Driver: ${esc(a.driver_name||"-")} · plate ${esc(a.plate||"-")}<br>Passenger: ${esc(a.passenger_name||"-")}<br>${a.lat!=null?`<a href="https://www.google.com/maps?q=${+a.lat},${+a.lng}" target="_blank" rel="noopener">Open the location on the map</a>`:"Location not available"}<br>Security company told automatically: ${a.provider_notified?"yes":"no"}</small>${P.provider&&P.provider.phone?`<a class="btn" style="display:block;text-align:center;margin-top:8px" href="tel:${esc(String(P.provider.phone).replace(/[^0-9+]/g,""))}">Call ${esc(P.provider.name||"the security company")}</a>`:""}<a class="btn ghost" style="display:block;text-align:center;margin-top:8px" href="tel:10111">Call the police: 10111</a><button class="btn ghost" style="margin-top:8px" data-a="panicres" data-id="${a.id}">Mark as handled</button></div>`).join("");
+  const lastOk=P.last_confirmed_test_at, due=!lastOk||(Date.now()-new Date(lastOk).getTime())>30*day;
+  const tests=al.filter(a=>a.is_test).slice(0,5).map(a=>`<div class="row"><small>Test ${esc(fmt(a.created_at))}${a.provider_notified?" · sent to the security company":""}</small>${a.provider_confirmed_at?'<span class="tag ok">Company confirmed</span>':`<button class="sm" data-a="panicconf" data-id="${a.id}">They confirmed</button>`}</div>`).join("");
+  return `${live}<h2>Panic button</h2><div class="card">${due?'<div class="banner bad"><strong>Monthly test due</strong>The regulations need the panic button tested every month. Run a test, then tap They confirmed once the security company tells you they received it.</div>':`<div class="banner ok"><strong>Tested</strong>Last confirmed test: ${esc(fmt(lastOk))}</div>`}<button class="btn" data-a="panictest">Run a panic test now</button>${tests?`<div style="margin-top:8px">${tests}</div>`:""}<h2 style="margin-top:14px">Security company</h2><small>The company that answers panic alerts. ${P.provider&&P.provider.has_webhook?"A web address is saved (hidden).":"No web address saved."}</small>${fld("pvname","Company name","")}${fld("pvphone","Control room phone number","","tel")}${fld("pvemail","Email","","email")}${fld("pvhook","Web address for automatic alerts (only if they gave you one; leave empty to keep the saved one)","https://")}${sel("pven","Send alerts to the security company",[["off","Off"],["on","On"]])}<button class="btn" data-a="panicsave">Save</button></div>`; };
 const driverDocsAlert=()=>{ const l=Object.entries(ST.dd||{}).filter(([id,x])=>x.status==="approved"&&x.state!=="ok"); if(!l.length) return "";
   return `<h2>Drivers with missing or expired documents</h2>${l.map(([id,x])=>`<div class="card"><div class="row"><b>${esc(x.name)}</b><span class="tag bad">${x.state==="expired"?"Expired":"Missing"}</span></div><small>${esc(x.vehicle_type)} driver</small></div>`).join("")}`; };
 const ratingsAlert=()=>{ const a=ST.rAlerts||{low:[],recent:[]}; if(!(a.low||[]).length&&!(a.recent||[]).length) return "";
   return `<h2>Ratings to look at</h2>${(a.low||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.name||"Unknown")}</b><span class="tag bad">★ ${esc(String(x.avg))} (${+x.n})</span></div><small>${esc(x.role)} with a low average rating</small></div>`).join("")}${(a.recent||[]).map(x=>`<div class="card"><b>Trip #${+x.request_id}: ${+x.stars} star${+x.stars===1?"":"s"}</b><br><small>${esc(x.rater_role)} rated ${esc(x.name||"")}<br>${esc((x.tags||[]).join(", "))}${x.comment?"<br>"+esc(x.comment):""}</small></div>`).join("")}`; };
-const person=d=>`<div style="display:flex;gap:12px;align-items:center">${d.photo?`<img src="${esc(d.photo)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`:'<div style="width:64px;height:64px;border-radius:50%;background:var(--bg)"></div>'}<div><b>${esc(d.full_name)}</b>${ratingTag(d.rating)}<br><small>${esc(d.vehicle_colour)} ${esc(d.vehicle_make)}${d.plate_number?" · "+esc(d.plate_number):""}</small></div></div>`+(d.car?`<img src="${esc(d.car)}" alt="Photo of the car" style="width:100%;max-height:200px;border-radius:12px;object-fit:cover;margin-top:10px">`:"");
+const person=d=>`<div style="display:flex;gap:12px;align-items:center">${d.photo?`<img src="${esc(d.photo)}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover">`:'<div style="width:64px;height:64px;border-radius:50%;background:var(--bg)"></div>'}<div><b>${esc(d.full_name)}</b>${ratingTag(d.rating)}<br><small>${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} ${esc(d.vehicle_model||"")}${d.plate_number?" · "+esc(d.plate_number):""}</small></div></div>`+(d.car?`<img src="${esc(d.car)}" alt="Photo of the car" style="width:100%;max-height:200px;border-radius:12px;object-fit:cover;margin-top:10px">`:"");
 const area=(k,l,ph="")=>`<label for="f_${k}">${l}</label><textarea id="f_${k}" rows="5" style="width:100%;font:inherit;font-size:16px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)" data-a="form" data-k="${k}" placeholder="${ph}">${esc(ST.form[k]||"")}</textarea>`;
 function videoBar(){
   if(!ST.vids.length) return "";
@@ -756,6 +778,18 @@ function mountRideMap(){
   RM.on("moveend",()=>{ const c=RM.getCenter(); d.view={lat:c.lat,lng:c.lng,z:RM.getZoom()}; });
   setTimeout(()=>{ try{ RM.invalidateSize(); }catch(e){} },60);
 }
+let HM=null;
+function mountHeat(){
+  if(HM){ try{ HM.remove(); }catch(e){} HM=null; }
+  const h=ST.heat, el=document.getElementById("heatmap");
+  if(!h||!h.open||!el||!window.L||!window.L.map) return;
+  const c=h.cells||[];
+  HM=L.map(el).setView(c.length?[c[0].lat,c[0].lng]:[-29.69,30.96],c.length?13:12);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(HM);
+  const mx=Math.max(1,...c.map(x=>x.n));
+  c.forEach(x=>{ const k=x.n/mx; L.circle([x.lat,x.lng],{radius:550,stroke:false,fillColor:k>.66?"#b71c1c":k>.33?"#ef6c00":"#fbc02d",fillOpacity:.3+.5*k}).addTo(HM).bindTooltip(x.n+" ride requests"); });
+  setTimeout(()=>{ try{ HM.invalidateSize(); }catch(e){} },60);
+}
 function pointBox(kind,title){
   const d=ST.rd, pt=d[kind], res=d.res[kind]||[], k=kind==="pickup"?"rdqp":"rdqd";
   return `<h2 style="margin-top:14px">${title}</h2>`+(pt
@@ -771,7 +805,7 @@ function landmarkBlock(){
 }
 function favPick(){
   const vv=(ST.rd||{}).veh||"car"; const f=(ST.favs||[]).filter(d=>(d.vehicle_type||"car")===vv); if(!f.length) return "";
-  return sel("rdpref","Ask my regular driver first (they get 60 seconds)",[["","No, any nearby driver"]].concat(f.map(d=>[d.id,d.full_name+" · "+(d.vehicle_colour||"")+" "+(d.vehicle_make||"")])));
+  return sel("rdpref","Ask my regular driver first (they get 60 seconds)",[["","No, any nearby driver"]].concat(f.map(d=>[d.id,d.full_name+" · "+(d.vehicle_colour||"")+" "+(d.vehicle_make||"")+" "+(d.vehicle_model||"")])));
 }
 function rideForm(){
   const d=ST.rd, q=d.quote;
@@ -779,7 +813,7 @@ function rideForm(){
   <div class="card">${vehPick()}</div>
   <div class="card">${pointBox("pickup","Pick-up")}${pointBox("drop","Drop-off")}</div>
   ${q?`<div class="card"><div class="row"><span>Distance</span><b>${esc(q.km)} km</b></div><div class="row"><span>Fixed price</span><b class="big">${R(q.price_cents)}</b></div>${q.surcharge_cents>0?`<div class="row"><span>Includes weekend rate (Fri 15:30 to Sun 17:00)</span><b>${R(q.surcharge_cents)}</b></div>`:""}<div class="note">${d.est?"The map service did not answer, so the distance is an estimate. The price shown is still the price you pay. ":""}${d.pay==="eft"?"You pay the driver by EFT before the trip starts.":"You pay the driver in cash when you arrive."}</div></div>`:""}
-  <div class="card">${landmarkBlock()}${favPick()}<div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}
+  <div class="card">${landmarkBlock()}${favPick()}<div class="note">The driver will text or send you a voice note. Cell numbers are never shared.</div>${fld("rdnote","Anything the driver should know (optional)","e.g. blue gate, red jacket")}${fld("rdfor","Is this ride for someone else? Type their first name (leave empty if it is for you)","e.g. Thandi")}
   ${ridePaySel()}<button class="btn" data-a="rdsend" ${q?"":"disabled"}>Request this ride</button><button class="btn ghost" data-a="rdback">Back</button></div>`;
 }
 function driveTab(){
@@ -800,7 +834,7 @@ function driveTab(){
     if(chosen&&t.status==="completed") body+=(ST.rated||[]).includes(t.id)?'<small>Thank you for rating this trip.</small>':ratingBox(t.id,"driver");
     const act=(t.status==="accepted"||t.status==="started")?`<button class="btn" data-a="arrived" data-id="${t.id}">I have arrived safely</button>`:"";
     const can=(t.status==="open"||t.status==="accepted")?(cancelling===t.id?`<select id="why"><option>Changed my mind</option><option>Driver not answering</option><option>Found another driver</option></select><button class="btn ghost" data-a="docanceltrip" data-id="${t.id}">Confirm cancel</button>`:`<button class="btn ghost" data-a="canceltrip" data-id="${t.id}">Cancel</button>`):"";
-    return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?(VEH[t.vehicle_class]||"Car")+" ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${body}${act}${can}</div>`}).join("");
+    return `<div class="card"><div class="row"><b>${esc(t.from_place)} → ${esc(t.to_place)}</b><span class="tag ${g[1]}">${g[0]}</span></div><small>${t.ride_type==="car"?(VEH[t.vehicle_class]||"Car")+" ride · "+esc(t.distance_km)+" km · fixed price "+R(t.price_cents):esc(t.goods_type)}${t.budget_cents?" · your budget "+R(t.budget_cents):""}</small>${t.passenger_name?`<br><small>Booked for ${esc(t.passenger_name)}</small>`:""}${body}${act}${panicBtn(t)}${can}</div>`}).join("");
   return `<h1>Request a driver</h1><p class="sub">Need a ride or to move goods? Choose Request a ride, then pick Car, Bakkie or Truck: the app works out the distance and shows one fixed price, and a driver of that vehicle nearby accepts. You pay the driver in cash, or by EFT if you choose that. Tap I have arrived safely when you get there.</p>${msgs()}<button class="btn" data-a="newride">Request a ride</button><button class="btn ghost" style="margin-top:8px" data-a="newgoods">Move goods (bakkie or truck)</button>${trips?`<h2 style="margin-top:16px">Your trips</h2>${trips}`:""}`;
 }
 function reqForm(){
@@ -835,19 +869,20 @@ function driver(){
   const bn=d.overdue?'<div class="banner bad"><strong>Payment overdue</strong>Customers cannot see you until you pay your balance.</div>':(me.status!=="approved"?'<div class="banner bad"><strong>Your account is not active</strong>Contact Eezy Kasi.</div>':"");
   const carCard=me.car_photo_path?"":carCardHtml();
   const rideList=(ST.rides||[]).map(x=>`<div class="card"><div class="row"><b>${esc(x.from_place)} → ${esc(x.to_place)}</b><b>${R(x.price_cents)}</b></div>${x.pay_method==="eft"?'<span class="tag">Pays by EFT</span> ':""}${custTag(x.id)}${x.for_you?'<span class="tag ok">Your regular customer asked for you</span>':x.same_area?'<span class="tag ok">From your kasi</span>':""}<small>${esc(x.distance_km)} km trip · pick-up about ${esc(x.away_km)} km from you${x.pickup_landmark?"<br>Landmark: <b>"+esc(x.pickup_landmark)+"</b>":""}${x.description?"<br>"+esc(x.description):""}</small><button class="btn" data-a="takeride" data-id="${x.id}">Accept · ${R(x.price_cents)}</button><button class="btn ghost" style="margin-top:8px" data-a="declineride" data-id="${x.id}">Reject</button></div>`).join("");
+  const heatCard=(isRider(me)&&me.vehicle_type==="car")?`<div class="card"><h2>Busy areas</h2><small>Where passengers asked for rides in the last 14 days. Darker circles are busier. Only areas with at least 3 requests are shown, so no single trip can be seen.</small>${ST.heat&&ST.heat.open?`<div id="heatmap" style="height:280px;border-radius:12px;overflow:hidden;margin:8px 0;background:var(--bg)"></div>${ST.heat.empty?'<div class="note">Not enough requests yet to show busy areas.</div>':""}<button class="sm" data-a="heatoff">Hide the map</button>`:`<button class="btn" data-a="heaton">Show busy areas</button>`}</div>`:"";
   const rideSec=isRider(me)?`<h2>${me.vehicle_type==="car"?"Car rides near you":VEH[me.vehicle_type]+" requests near you"}</h2>${ST.rideErr?`<div class="banner bad">${esc(ST.rideErr)}</div>`:""}${ST.online?`<div class="note">You are online. You see rides with a pick-up within a few kilometres of you, and rides from your own place show first. New ones appear by themselves. Keep this app open on your screen.</div>${rideList||`<div class="card"><small>${me.vehicle_type==="car"?"No car rides near you right now.":"No requests near you right now."}</small></div>`}<button class="sm" data-a="gooffline">Go offline</button>`:`<div class="note">${me.vehicle_type==="car"?"Go online to see car ride requests close to you.":"Go online to see ride requests close to you."} Your location is used only while you are online. Do not fake your location: we keep a record of impossible jumps.</div><button class="btn" data-a="goonline">Go online</button>`}`:"";
   const reqs=ST.openReqs.map(r=>{const rt=ST.myRoutes.find(x=>same(x.from_place,r.from_place)&&same(x.to_place,r.to_place));
     return `<div class="card"><div class="row"><b>${esc(r.from_place)} → ${esc(r.to_place)}</b><b>${rt?R(rt.price_cents):""}</b></div><small>${esc(r.goods_type)}: ${esc(r.description||"")}<br>When: ${esc(r.when_text||"-")}${r.budget_cents?"<br>Customer budget: "+R(r.budget_cents):""}</small>${offered.has(r.id)?'<div class="note">You accepted. Waiting for the customer to choose.</div>':`<button class="btn" data-a="offer" data-id="${r.id}">Accept at ${R(rt?rt.price_cents:0)}</button>`}</div>`}).join("");
   const jobs=ST.jobs.map(j=>{const g=tagFor(j.status), c=ST.contacts[j.id]||{};
     const act=j.status==="accepted"?(j.ride_type==="car"?((j.pay_method==="eft"&&!j.eft_received_at)?eftWait(j):`<label for="f_pin${j.id}">Ask the customer for their 4-digit PIN</label><input id="f_pin${j.id}" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="width:100%;font-size:28px;letter-spacing:10px;text-align:center" value="${esc(ST.form["pin"+j.id]||"")}" data-a="form" data-k="pin${j.id}" placeholder="0000"><button class="btn" data-a="jstartpin" data-id="${j.id}">Start trip</button>`):`<button class="btn" data-a="jstart" data-id="${j.id}">Start trip</button>`):'<div class="note">Trip started. It is finished when the customer taps that they have arrived.</div>';
-    return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p><small>Pick up: ${esc(c.pickup_text||"")}${j.pickup_landmark?"<br>Landmark: <b>"+esc(j.pickup_landmark)+"</b>":""}<br>When: ${esc(j.when_text||"-")}<br>The customer will text or send you a voice note. Cell numbers are not shared.</small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}</div>`}).join("");
+    return `<div class="card"><div class="row"><b>${esc(j.from_place)} → ${esc(j.to_place)} · ${R(j.price_cents)}</b><span class="tag ${g[1]}">${g[0]}</span></div><p style="margin:4px 0">${esc(j.goods_type)}: ${esc(j.description||"")}</p>${j.passenger_name?`<p style="margin:2px 0"><b>This ride is for: ${esc(j.passenger_name)}</b></p>`:""}<small>Pick up: ${esc(c.pickup_text||"")}${j.pickup_landmark?"<br>Landmark: <b>"+esc(j.pickup_landmark)+"</b>":""}<br>When: ${esc(j.when_text||"-")}<br>The customer will text or send you a voice note. Cell numbers are not shared.</small> <button class="sm" data-a="chatwith" data-v="${j.customer_id}">Message customer</button>${j.ride_type==="car"?`<p style="margin:6px 0"><small>${esc(j.distance_km)} km trip · ${navLink(j.pickup_lat,j.pickup_lng,"Navigate to pick-up")} · ${navLink(j.drop_lat,j.drop_lng,"Navigate to drop-off")}</small></p>`:""}${act}${panicBtn(j)}</div>`}).join("");
   const routes=ST.myRoutes.map(p=>`<div class="row"><span>${esc(p.from_place)} → ${esc(p.to_place)}</span><span><b>${R(p.price_cents)}</b> <button class="sm" data-a="delroute" data-id="${p.id}">Remove</button></span></div>`).join("");
   if(xtab==="req"){
     const act=(ST.jobs||[]).length;
     const goods=isRider(me)?"":`<h2>Requests for your routes</h2>${reqs||'<div class="card"><small>No customers are asking for your routes right now. Tap Refresh to check.</small></div>'}`;
     return `<h1>Requests</h1><p class="sub">${isRider(me)?"Go online here, then new customer requests appear on this screen.":"Customers asking for your routes appear here."}</p>${bn}${msgs()}
   ${act?`<div class="banner ok"><strong>You have ${act} active job${act===1?"":"s"}</strong><button class="sm" style="margin-top:8px" data-a="xtab" data-v="main">Open My jobs</button></div>`:""}
-  ${rideSec}${goods}`;
+  ${rideSec}${heatCard}${goods}`;
   }
   return `<h1>${esc(me.full_name)}</h1><p class="sub">Trips are paid weekly.</p>${bn}${msgs()}
   <div class="card"><h2>Balance to pay</h2><div class="row"><span>Trips finished</span><b>${d.jobs_completed||0}</b></div>
@@ -935,7 +970,7 @@ function adminOverview(){
     ${ST.vids.some(v=>!v.poster_url)?`<button class="btn ghost" data-a="thumbs">Create thumbnails for ${ST.vids.filter(v=>!v.poster_url).length} video${ST.vids.filter(v=>!v.poster_url).length===1?"":"s"}</button>`:""}<label for="v_file">Or upload a short video</label><small>MP4 or WebM, under 40 MB. Clips under 30 seconds work best.</small><input id="v_file" type="file" accept="video/mp4,video/webm"><button class="btn" data-a="postvideo">Add video</button>
     ${ST.vids.map(v=>`<div class="row"><span>${esc(v.title)}</span><button class="sm" data-a="delvid" data-id="${v.id}">Delete</button></div>`).join("")}</div>`;
   return `<h1>Admin</h1><p class="sub">Businesses, drivers, payments and shops.</p>${msgs()}
-  ${owners?`<h2>Businesses waiting for approval</h2>${owners}`:""}${pend?`<h2>Drivers waiting for approval</h2>${pend}`:""}${driverDocsAlert()}${ratingsAlert()}${pays?`<h2>Payments to confirm</h2>${pays}`:""}${trips?`<h2>Trips not confirmed yet</h2>${trips}`:""}
+  ${panicAdmin()}${owners?`<h2>Businesses waiting for approval</h2>${owners}`:""}${pend?`<h2>Drivers waiting for approval</h2>${pend}`:""}${driverDocsAlert()}${ratingsAlert()}${pays?`<h2>Payments to confirm</h2>${pays}`:""}${trips?`<h2>Trips not confirmed yet</h2>${trips}`:""}
   ${feedAdmin}<h2>Shops</h2>${rows||'<div class="card"><small>No shops yet.</small></div>'}
   <div class="card"><h2>Your bank details</h2><small>Only logged-in owners, drivers and you can see these.</small>${bank}</div>`;
 }
@@ -1367,7 +1402,7 @@ function render(){
   const cust=user&&user.tab==="cust";
   document.getElementById("bar").innerHTML = user?`<span><b style="display:inline-block;max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">${esc(dispName())}</b>${cust&&loc?" · "+esc(loc):""}</span><span>${cust&&loc?'<button class="sm" data-a="area">Change area</button> ':''}<button class="sm" data-a="sndtoggle" aria-label="Message sound on or off">${soundOn?"🔔":"🔕"}</button> <button class="sm" data-a="refresh">Refresh</button> <button class="sm" data-a="logout">Log out</button></span>`:"";
   document.getElementById("app").innerHTML = !user?((authView==="home"&&!authMsg)?homeScreen():authView==="forgot"?forgotScreen():authView==="reset"?resetScreen():authView==="signup"?signupScreen():authView==="check"?checkScreen():loginScreen()):tab==="pend"?pendingScreen():tab==="cust"?customer():msgTabs()+(xtab==="msgs"?messagesScreen():tab==="own"?owner():tab==="drv"?driver():admin());
-  if(!user) tsMount(); wishVis(); mountRideMap(); restoreFiles();
+  if(!user) tsMount(); wishVis(); mountRideMap(); mountHeat(); restoreFiles();
 }
 const patchShop=(id,body)=>sb("/rest/v1/shops?id=eq."+id,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify(body)});
 const H={
@@ -1439,8 +1474,8 @@ const H={
   rdsend:()=>go(async()=>{const d=ST.rd, f=ST.form; if(!d||!d.quote) throw new Error("Choose the pick-up and drop-off first.");
     const q2=await rpc("ride_quote",{p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_vehicle:d.veh||"car"});
     if(q2.price_cents!==d.quote.price_cents){ d.quote=q2; throw new Error("The price has changed to "+R(q2.price_cents)+" because the weekend rate has just "+(q2.surcharge_cents>0?"started":"ended")+". Please check it and tap Request again."); }
-    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null,p_vehicle:d.veh||"car",...(d.pay==="eft"?{p_pay_method:"eft"}:{})});
-    f.rdland=""; f.rdnote=""; f.rdpref="";
+    await rpc("request_car_ride",{p_from:d.pickup.label,p_to:d.drop.label,p_from_lat:d.pickup.lat,p_from_lng:d.pickup.lng,p_to_lat:d.drop.lat,p_to_lng:d.drop.lng,p_km:+d.km.toFixed(2),p_phone:"",p_note:f.rdnote||"",p_landmark:f.rdland||"",p_preferred:f.rdpref||null,p_vehicle:d.veh||"car",p_for_name:(f.rdfor||"").trim()||null,...(d.pay==="eft"?{p_pay_method:"eft"}:{})});
+    f.rdland=""; f.rdnote=""; f.rdpref=""; f.rdfor="";
     ST.rd=null; await loadTrips(); ST.note=(d.pay==="eft"?"When a driver accepts, their bank details appear here so you can pay. ":"")+"Ride requested. We are asking drivers from your own place first, then drivers nearby. You will hear a sound when a driver accepts."; }),
   savecar:()=>go(async()=>{const f=(document.getElementById("f_carnew")||{}).files; if(!(f&&f[0])) throw new Error("Please choose a photo of your car first.");
     const p=await upload("driver-photos",f[0],"car"); await rpc("set_car_photo",{p_path:p}); clearFiles(); ST.note="Car photo saved. Customers will now see it."; if(user&&user.tab==="drv") await loadDriver(); else await loadMe(); }),
@@ -1456,6 +1491,24 @@ const H={
   rstar:(el,id)=>{ if(!ST.rate||+ST.rate.id!==+id) ST.rate={id,stars:0,tags:[]}; ST.rate.stars=+el.dataset.v; },
   rtag:(el,id)=>{ if(!ST.rate||+ST.rate.id!==+id) ST.rate={id,stars:0,tags:[]}; const v=el.dataset.v, i=ST.rate.tags.indexOf(v); if(i>=0) ST.rate.tags.splice(i,1); else ST.rate.tags.push(v); },
   ratesend:(el,id)=>go(async()=>{ const r=ST.rate&&+ST.rate.id===+id?ST.rate:null; if(!r||!r.stars) throw new Error("Tap the stars first."); await rpc("rate_trip",{p_request:id,p_stars:r.stars,p_tags:r.tags,p_comment:null}); ST.rated=(ST.rated||[]).concat(id); ST.toRate=(ST.toRate||[]).filter(x=>x.id!==id); ST.rate=null; ST.note="Thank you for rating."; }),
+  vehsave:()=>go(async()=>{ const m=(ST.form.vmodel||"").trim(), d=((document.getElementById("f_vreg")||{}).value||"").trim();
+    await rpc("save_vehicle_details",{p_model:m,p_first_reg:d||null}); ST.docs=await rpc("my_driver_docs",{}); ST.form.vmodel=""; ST.note="Saved."; }),
+  crimsave:()=>go(async()=>{ const fl=(document.getElementById("f_doc_police_clearance")||{files:[]}).files[0], ex=((document.getElementById("f_docx_police_clearance")||{}).value||"").trim();
+    if(!fl) throw new Error("Choose a clear photo of the police report first."); if(!ex) throw new Error("Type the date the report was issued.");
+    ST.note="Sending your report… please wait."; render();
+    const path=await upload("driver-docs",fl,"police_clearance"); await rpc("save_extra_doc",{p_kind:"police_clearance",p_path:path,p_date:ex}); clearFiles(); ST.docs=await rpc("my_driver_docs",{}); ST.note="Saved."; }),
+  declsave:()=>go(async()=>{ const ok=!!(document.getElementById("f_decok")||{}).checked;
+    await rpc("save_declaration",{p_name:(ST.form.decname||"").trim(),p_agree:ok}); ST.docs=await rpc("my_driver_docs",{}); ST.form.decname=""; ST.note="Signed. Thank you."; }),
+  panic:(el,id)=>go(async()=>{ if(!confirm(PANIC_NOTE)) return;
+    const p=await Promise.race([getPos().catch(()=>null),new Promise(r=>setTimeout(()=>r(null),4000))]);
+    await rpc("send_panic",{p_request:id,p_lat:p?p.lat:null,p_lng:p?p.lng:null});
+    ST.note="Panic alert sent. Stay as safe as you can. If you are in danger, call the police on 10111 now."; }),
+  panictest:()=>go(async()=>{ await rpc("panic_run_test",{}); await loadPanic(); ST.note="Test sent. Check that your phone got the alert, then ask the security company to confirm theirs."; }),
+  panicconf:(el,id)=>go(async()=>{ await rpc("panic_confirm_test",{p_id:id}); await loadPanic(); ST.note="Recorded."; }),
+  panicres:(el,id)=>go(async()=>{ await rpc("resolve_panic",{p_id:id}); await loadPanic(); ST.note="Marked as handled."; }),
+  panicsave:()=>go(async()=>{ const f=ST.form; await rpc("panic_provider_save",{p_name:f.pvname||"",p_phone:f.pvphone||"",p_email:f.pvemail||"",p_webhook:f.pvhook||"",p_enabled:f.pven==="on"}); f.pvhook=""; await loadPanic(); ST.note="Saved."; }),
+  heaton:()=>go(async()=>{ await loadLeaflet(); const d=await rpc("demand_heat",{}); ST.heat={open:true,cells:d||[],empty:!(d&&d.length)}; }),
+  heatoff:()=>{ ST.heat=null; },
   docsave:el=>go(async()=>{ const k=el.dataset.k, fl=(document.getElementById("f_doc_"+k)||{files:[]}).files[0], ex=((document.getElementById("f_docx_"+k)||{}).value||"").trim();
     if(!fl) throw new Error("Choose a clear photo of the document first."); if(!ex) throw new Error("Type the expiry date shown on the document.");
     ST.note="Sending your document… please wait."; render();
@@ -1665,9 +1718,9 @@ function wishAdd(){
 })();
 
 // ---- privacy policy and terms (opens over any screen, so nothing typed is lost) ----
-const LEGAL_VERSION="policy-2026-11-12a";
+const LEGAL_VERSION="policy-2026-11-13a";
 const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
-<p class="sub" style="margin:0 0 12px">Last updated: 12 November 2026.</p>
+<p class="sub" style="margin:0 0 12px">Last updated: 13 November 2026.</p>
 <h3>Who we are</h3>
 <p>Eezy Kasi (“we”, “us”) is a web app that helps people in Inanda and nearby areas order from local businesses, get car rides, and move goods with bakkie and truck drivers. It is owned and run by Inanda Business Enterprise Services (PTY) LTD, a private company registered in South Africa (registration number 2026/817908/07). Eezy Kasi is the name the company trades under. Where this policy and these terms say “we”, “us” or “our”, they mean Inanda Business Enterprise Services (PTY) LTD. For the purposes of the Protection of Personal Information Act (POPIA), the company is the “responsible party” for the personal information described in this policy.</p>
 <p>Our address: 09 Juba Blose Street, Geneva, Bhambayi, Inanda, 4310.</p>
@@ -1688,7 +1741,10 @@ const LEGAL_HTML=`<h2 style="margin:0 0 4px">Privacy policy and terms</h2>
 <li>Alerts, only if you turn them on: an alert address for your phone, which is a code made by your phone’s own alert service. We use it only to send you alerts about new messages, orders and trips. You can turn alerts off any time with the bell at the top, and logging out stops them on that phone.</li>
 <li>Shops and car drivers who choose to take EFT payments: the bank details you type (the name on the account, the bank, the account type, the account number and the branch code). We show them only to a customer who has placed an order with you, or whose ride you have accepted, so that the customer can pay you, and to nobody else. Customers pay you directly. We never hold, receive or move that money.</li>
 <li>Supply orders (shop owners): the supplier and delivery day you choose, the items and amounts you order, your payment reference, when you tapped “I have paid”, whether a refund is due to you, and when you confirmed that the goods arrived. We also use the shop name, cell number and area already on your account to deliver your order.</li>
-<li>Driver documents: if you drive, photos of your driver’s licence and your vehicle licence disc and, for trucks, your professional driving permit (PrDP) and proof of insurance, with their expiry dates. Only you and the Eezy Kasi admin can see them. Customers never see them.</li>
+<li>Driver documents: if you drive, photos of your driver’s licence and your vehicle licence disc, with their expiry dates. Car drivers also give their professional driving permit (PrDP), the model and first registration date of the vehicle, a police criminal record report (a photo, with its issue date) and a signed declaration that no criminal investigation is pending against them. Trucks give their PrDP and proof of insurance. The transport regulations require these checks. Only you and the Eezy Kasi admin can see them, and customers never see them. We keep them while you drive with us and delete them within 12 months after you stop.</li>
+<li>Panic button (during a car ride): if the passenger or the driver taps it, we record who tapped it, the trip, and the phone’s location at that moment, and we send these to the Eezy Kasi admin and to the security company we appoint to respond, so that they can help. We keep panic records for 12 months, or longer if they are needed for a police case or a dispute.</li>
+<li>Busy areas: drivers can see a map of areas where at least 3 ride requests were made in the last 14 days. It never shows a single trip or person.</li>
+<li>Rides for someone else: if you book a ride for another person you type only their first name, which the driver sees. Cell numbers are never shared.</li>
 <li>Ratings: the stars and short tags that customers and drivers give each other after a trip. The other person sees your average star rating once you have a few ratings, but never who gave which rating.</li>
 <li>Eezy AI assistant (the “Eezy AI” button, for everyone who is logged in): the messages you type or say to it, your language and your role (for example customer or driver) are sent to our AI provider, Anthropic, to write an answer. When you ask it to find a shop or product, it looks only at shops and items that are open for orders. We do not send your name, cell number, address, orders or account details to it. We keep only a count of how many times you used it each day, to stop misuse. Please do not type ID numbers, passwords, bank details or other people’s personal details into it. Its answers can be wrong, so check them before you act. If you tap the microphone, your phone’s browser turns your voice into text with its own speech service, which is run by the browser’s maker. If you tap Listen while using isiZulu, the text of the answer is sent to Microsoft’s Azure speech service to create the audio.</li>
 <li>Eezy AI (shop owners and admins only): when you tap Write, Translate or Promotion in the menu form, the item name, price, short note, language and kind of business (for example food) are sent to our AI provider, Anthropic, to write the text for you. We do not send customer names, cell numbers, addresses or orders to Eezy AI. We keep only a count of how many times you used it each day, to stop misuse. Please do not type other people's personal details into those boxes. The text you get back is a suggestion: read it and correct it before you use it.</li>
@@ -2873,6 +2929,8 @@ Object.assign(H,{
 // errors from the server) stays exactly as it is. Switching back to English restores every original word.
 (function () {
   const ZU = {
+    "🚨 Panic: I need help":"🚨 Ngisengozini: ngidinga usizo","Busy areas":"Izindawo ezimatasa","Show busy areas":"Bonisa izindawo ezimatasa","Hide the map":"Fihla imephu",
+    "Vehicle details":"Imininingwane yemoto","Signed declaration":"Isitatimende esisayiniwe",
     "Your Kasi. Your People. One Platform.":"Ikasi lakho. Abantu bakho. Inkundla eyodwa.",
     "Find food, transport and local businesses around your community.":"Thola ukudla, ezokuthutha namabhizinisi endawo emphakathini wakho.",
     "Explore Eezy Kasi →":"Hlola i-Eezy Kasi →","Already have an account?":"Usunayo i-akhawunti?",
