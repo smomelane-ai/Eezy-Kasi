@@ -389,6 +389,7 @@ async function loadAdmin(){
   try{ ST.reports=await rpc("admin_reports",{}); }catch(e){ ST.reports=[]; }
   try{ ST.dd=(await rpc("admin_driver_docs",{}))||{}; await signDocs(ST.dd); }catch(e){ ST.dd={}; }
   await loadPanic();
+  try{ ST.stats=await rpc("admin_stats",{}); }catch(e){ ST.stats=null; }
   try{ ST.rAlerts=(await rpc("admin_ratings_alerts",{}))||{low:[],recent:[]}; }catch(e){ ST.rAlerts={low:[],recent:[]}; }
   try{ const cs=await sb("/rest/v1/platform_settings?select=customers_need_approval&id=eq.1"); ST.custAppr=!!(cs&&cs[0]&&cs[0].customers_need_approval); }catch(e){}
   ST.pendOwn=[];
@@ -954,6 +955,23 @@ function payScreen(){
 }
 const idn=d=>{const p=d.driver_private; return ((Array.isArray(p)?p[0]:p)||{}).id_number||"";};
 const catLabel=c=>({food:"Food",construction:"Construction",beauty:"Beauty"}[c]||"Food");
+function statsCard(){
+  const t=ST.stats; if(!t) return "";
+  const n=v=>(v==null?"–":String(v));
+  const box=(num,lab)=>`<div style="flex:1 1 30%;min-width:92px;background:rgba(0,0,0,.04);border-radius:12px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800">${esc(n(num))}</div><small>${esc(lab)}</small></div>`;
+  const row=a=>`<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">${a.join("")}</div>`;
+  const p=t.people||{}, d=t.drivers||{}, s=t.shops||{}, o=t.orders||{}, r=t.rides||{};
+  const areas=(t.areas||[]).map(x=>`<div class="row"><span>${esc(x.name)}</span><b>${esc(String(x.n))}</b></div>`).join("");
+  return `<h2>Stats</h2><div class="card"><b>People</b>${row([box(p.customers,"Customers"),box(p.owners,"Business owners"),box(p.drivers,"Drivers")])}
+    ${row([box(p.new_7d,"New, 7 days"),box(p.new_30d,"New, 30 days"),box(p.suspended,"Suspended")])}
+    <b>Drivers</b>${row([box(d.approved,"Approved"),box(d.waiting,"Waiting")])}
+    <b>Shops</b>${row([box(s.open,"Open"),box(s.paused,"Paused")])}
+    <b>Shop orders</b>${row([box(o.total,"All time"),box(o.last_7d,"Last 7 days"),box(o.last_30d,"Last 30 days"),box(o.delivered,"Delivered"),box(o.cancelled,"Cancelled")])}
+    <b>Rides and trips</b>${row([box(r.total,"All time"),box(r.last_7d,"Last 7 days"),box(r.last_30d,"Last 30 days"),box(r.completed,"Completed"),box(r.cancelled,"Cancelled")])}
+    <div class="row"><span>Completed ride value, last 30 days</span><b>${r.value_30d_cents==null?"–":R(r.value_30d_cents)}</b></div>
+    <div class="row"><span>Completed ride value, all time</span><b>${r.value_all_cents==null?"–":R(r.value_all_cents)}</b></div>
+    ${areas?`<b>Members by place</b>${areas}`:""}<small>Updates when you tap Refresh.</small></div>`;
+}
 function adminOverview(){
   const owners=(ST.pendOwn||[]).map(o=>`<div class="card"><div class="row"><b>${esc(o.app.shop_name)}</b><span class="tag">${esc(catLabel(o.app.category))}</span></div><small>${esc(o.name)} ${esc(o.surname||"")} · ${esc(o.phone||"")}<br>${esc(o.app.shop_address||"")}${o.app.area_name?" · "+esc(o.app.area_name):""}${o.app.area_name&&!(ST.areas||[]).some(a=>same(a.name,o.app.area_name))?"<br>New place: approving adds it to the list.":""}${o.app.category==="construction"?"<br>Trade: <b>"+esc(o.app.trade||"not given")+"</b><br>Works in: "+esc((o.app.work_places||[]).join(", ")||"not given"):""}</small><button class="btn" data-a="approveown" data-v="${o.id}">Approve business</button></div>`).join("");
   const pend=ST.pend.map(d=>`<div class="card"><b>${esc(d.full_name)}</b><br><small>${esc(d.cellphone)} · ${esc(d.vehicle_colour)} ${esc(d.vehicle_make)} · ${esc(d.plate_number)}<br>ID number: ${esc(idn(d))}<br>Check the ID photo in Supabase > Storage > driver-ids before approving.</small><div style="display:flex;gap:8px;margin:8px 0">${d.photo?`<img src="${esc(d.photo)}" alt="Face" style="width:48%;height:130px;border-radius:10px;object-fit:cover">`:""}${d.car?`<img src="${esc(d.car)}" alt="Car" style="width:48%;height:130px;border-radius:10px;object-fit:cover">`:"<small>No car photo yet.</small>"}</div>${docsAdminBlock(d.id)}<button class="btn" data-a="approve" data-v="${d.id}">Approve driver</button></div>`).join("");
@@ -970,7 +988,7 @@ function adminOverview(){
     ${ST.vids.some(v=>!v.poster_url)?`<button class="btn ghost" data-a="thumbs">Create thumbnails for ${ST.vids.filter(v=>!v.poster_url).length} video${ST.vids.filter(v=>!v.poster_url).length===1?"":"s"}</button>`:""}<label for="v_file">Or upload a short video</label><small>MP4 or WebM, under 40 MB. Clips under 30 seconds work best.</small><input id="v_file" type="file" accept="video/mp4,video/webm"><button class="btn" data-a="postvideo">Add video</button>
     ${ST.vids.map(v=>`<div class="row"><span>${esc(v.title)}</span><button class="sm" data-a="delvid" data-id="${v.id}">Delete</button></div>`).join("")}</div>`;
   return `<h1>Admin</h1><p class="sub">Businesses, drivers, payments and shops.</p>${msgs()}
-  ${panicAdmin()}${owners?`<h2>Businesses waiting for approval</h2>${owners}`:""}${pend?`<h2>Drivers waiting for approval</h2>${pend}`:""}${driverDocsAlert()}${ratingsAlert()}${pays?`<h2>Payments to confirm</h2>${pays}`:""}${trips?`<h2>Trips not confirmed yet</h2>${trips}`:""}
+  ${statsCard()}${panicAdmin()}${owners?`<h2>Businesses waiting for approval</h2>${owners}`:""}${pend?`<h2>Drivers waiting for approval</h2>${pend}`:""}${driverDocsAlert()}${ratingsAlert()}${pays?`<h2>Payments to confirm</h2>${pays}`:""}${trips?`<h2>Trips not confirmed yet</h2>${trips}`:""}
   ${feedAdmin}<h2>Shops</h2>${rows||'<div class="card"><small>No shops yet.</small></div>'}
   <div class="card"><h2>Your bank details</h2><small>Only logged-in owners, drivers and you can see these.</small>${bank}</div>`;
 }
