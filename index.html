@@ -955,14 +955,33 @@ function payScreen(){
 }
 const idn=d=>{const p=d.driver_private; return ((Array.isArray(p)?p[0]:p)||{}).id_number||"";};
 const catLabel=c=>({food:"Food",construction:"Construction",beauty:"Beauty"}[c]||"Food");
+function statsText(){
+  const t=ST.stats||{}, n=v=>(v==null?"n/a":String(v)), m=v=>(v==null?"n/a":R(v));
+  const p=t.people||{}, d=t.drivers||{}, s=t.shops||{}, o=t.orders||{}, r=t.rides||{};
+  const dt=new Date().toLocaleString("en-ZA",{dateStyle:"long",timeStyle:"short"});
+  const L=["EEZY KASI: PLATFORM STATS","Inanda Business Enterprise Services (PTY) LTD","As at "+dt,"",
+    "PEOPLE","Customers: "+n(p.customers),"Business owners: "+n(p.owners),"Drivers: "+n(p.drivers),"New in the last 7 days: "+n(p.new_7d),"New in the last 30 days: "+n(p.new_30d),"Suspended: "+n(p.suspended),"",
+    "DRIVERS","Approved: "+n(d.approved),"Waiting for approval: "+n(d.waiting),"",
+    "SHOPS","Open: "+n(s.open),"Paused: "+n(s.paused),"",
+    "SHOP ORDERS","All time: "+n(o.total),"Last 7 days: "+n(o.last_7d),"Last 30 days: "+n(o.last_30d),"Delivered: "+n(o.delivered),"Cancelled: "+n(o.cancelled),"",
+    "RIDES AND TRIPS","All time: "+n(r.total),"Last 7 days: "+n(r.last_7d),"Last 30 days: "+n(r.last_30d),"Completed: "+n(r.completed),"Cancelled: "+n(r.cancelled),
+    "Completed ride value, last 30 days: "+m(r.value_30d_cents),"Completed ride value, all time: "+m(r.value_all_cents)];
+  if((t.areas||[]).length){ L.push("","MEMBERS BY PLACE"); t.areas.forEach(x=>L.push(x.name+": "+x.n)); }
+  return L.join("\n");
+}
 function statsCard(){
   const t=ST.stats; if(!t) return "";
+  const open=!!ST.statsOpen;
+  const head=`<h2>Stats</h2>`;
+  if(!open) return head+`<button class="btn" data-a="statsopen">Show stats</button>`;
   const n=v=>(v==null?"–":String(v));
   const box=(num,lab)=>`<div style="flex:1 1 30%;min-width:92px;background:rgba(0,0,0,.04);border-radius:12px;padding:10px;text-align:center"><div style="font-size:22px;font-weight:800">${esc(n(num))}</div><small>${esc(lab)}</small></div>`;
   const row=a=>`<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">${a.join("")}</div>`;
   const p=t.people||{}, d=t.drivers||{}, s=t.shops||{}, o=t.orders||{}, r=t.rides||{};
   const areas=(t.areas||[]).map(x=>`<div class="row"><span>${esc(x.name)}</span><b>${esc(String(x.n))}</b></div>`).join("");
-  return `<h2>Stats</h2><div class="card"><b>People</b>${row([box(p.customers,"Customers"),box(p.owners,"Business owners"),box(p.drivers,"Drivers")])}
+  return head+`<div class="card"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-a="statscopy" style="flex:1">Copy stats</button><button class="btn ghost" data-a="statsclose" style="flex:1">Hide stats</button></div>
+    <small>Copy gives you plain text to paste into WhatsApp, an email or a document.</small>
+    <b>People</b>${row([box(p.customers,"Customers"),box(p.owners,"Business owners"),box(p.drivers,"Drivers")])}
     ${row([box(p.new_7d,"New, 7 days"),box(p.new_30d,"New, 30 days"),box(p.suspended,"Suspended")])}
     <b>Drivers</b>${row([box(d.approved,"Approved"),box(d.waiting,"Waiting")])}
     <b>Shops</b>${row([box(s.open,"Open"),box(s.paused,"Paused")])}
@@ -1525,6 +1544,15 @@ const H={
   panicconf:(el,id)=>go(async()=>{ await rpc("panic_confirm_test",{p_id:id}); await loadPanic(); ST.note="Recorded."; }),
   panicres:(el,id)=>go(async()=>{ await rpc("resolve_panic",{p_id:id}); await loadPanic(); ST.note="Marked as handled."; }),
   panicsave:()=>go(async()=>{ const f=ST.form; await rpc("panic_provider_save",{p_name:f.pvname||"",p_phone:f.pvphone||"",p_email:f.pvemail||"",p_webhook:f.pvhook||"",p_enabled:f.pven==="on"}); f.pvhook=""; await loadPanic(); ST.note="Saved."; }),
+  statsopen:()=>{ ST.statsOpen=true; },
+  statsclose:()=>{ ST.statsOpen=false; },
+  statscopy:()=>go(async()=>{
+    const txt=statsText(); let ok=false;
+    try{ await navigator.clipboard.writeText(txt); ok=true; }catch(e){}
+    if(!ok){ try{ const ta=document.createElement("textarea"); ta.value=txt; ta.setAttribute("readonly",""); ta.style.cssText="position:fixed;left:-9999px;top:0"; document.body.appendChild(ta); ta.select(); ok=document.execCommand("copy"); ta.remove(); }catch(e){} }
+    if(!ok) throw new Error("Your phone would not let the app copy. Tap Show stats and copy by hand instead.");
+    ST.note="Stats copied. Paste them into WhatsApp, an email or a document.";
+  }),
   heaton:()=>go(async()=>{ await loadLeaflet(); const d=await rpc("demand_heat",{}); ST.heat={open:true,cells:d||[],empty:!(d&&d.length)}; }),
   heatoff:()=>{ ST.heat=null; },
   docsave:el=>go(async()=>{ const k=el.dataset.k, fl=(document.getElementById("f_doc_"+k)||{files:[]}).files[0], ex=((document.getElementById("f_docx_"+k)||{}).value||"").trim();
