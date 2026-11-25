@@ -1,10 +1,13 @@
 // Service worker for Eezy Kasi.
 // Change VERSION whenever you change any file, so phones pick up the new version.
-const VERSION = "inanda-v111";
+const VERSION = "inanda-v112";
+// PAUSE SWITCH: while true, anyone opening the app home page sees paused.html instead of the app.
+// To bring the app back: set PAUSED to false and raise VERSION by one (e.g. inanda-v113).
+const PAUSED = true;
 const FEED_CACHE = "inanda-feed-v1";                       // news text, video list and news pictures (kept between versions)
 const ROOT = new URL("./", self.registration.scope).pathname;   // the app's own home page, e.g. "/"
 const SB_HOST = "zcqkydqrsriijjwaajjw.supabase.co";
-const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png", "kasi-bg.webp", "supply.js", "ai.js", "eezy-assistant.js", "eezy-voice.js"];
+const SHELL = ["./", "index.html", "paused.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png", "kasi-bg.webp", "supply.js", "ai.js", "eezy-assistant.js", "eezy-voice.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -49,6 +52,11 @@ self.addEventListener("fetch", e => {
   const r = e.request;
   if (r.method !== "GET") return;
   const u = new URL(r.url);
+
+  if (PAUSED && r.mode === "navigate" && (u.pathname === ROOT || u.pathname === ROOT + "index.html")) {   // 0. app is paused: show the pause notice instead of the app
+    e.respondWith(caches.match("paused.html").then(hit => hit || fetch("paused.html")));
+    return;
+  }
 
   if (isVideo(r, u)) return;                                  // 1. videos: straight to the network, never cached
 
